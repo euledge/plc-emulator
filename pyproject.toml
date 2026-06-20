@@ -26,9 +26,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USER/plcemulator"
-Repository = "https://github.com/YOUR_USER/plcemulator"
-Documentation = "https://github.com/YOUR_USER/plcemulator"
+Homepage = "https://github.com/euledge/plc-emulator"
+Repository = "https://github.com/euledge/plc-emulator"
+Documentation = "https://github.com/euledge/plc-emulator"
 
 [dependency-groups]
 dev = [

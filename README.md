@@ -1,6 +1,6 @@
 # PLCEmulator
 
-[![CI](https://github.com/YOUR_USER/plcemulator/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USER/plcemulator/actions/workflows/ci.yml)
+[![CI](https://github.com/euledge/plc-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/euledge/plc-emulator/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
