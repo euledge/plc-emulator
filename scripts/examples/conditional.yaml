@@ -1,0 +1,12 @@
+# D100 > 500 のときにM0をONにする条件付きスクリプト
+- type: conditional
+  interval_ms: 200
+  conditions:
+    - when: "D100 > 500"
+      actions:
+        - target: M0
+          value: 1
+    - when: "D100 <= 500"
+      actions:
+        - target: M0
+          value: 0

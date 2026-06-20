@@ -1,0 +1,39 @@
+[project]
+name = "plcemulator"
+version = "0.1.0"
+description = "PLC communication emulator - MC protocol / SLMP compatible"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+keywords = ["plc", "mc-protocol", "slmp", "emulator", "mitsubishi", "automation", "fastapi"]
+authors = [
+    { name = "PLCEmulator Contributors" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Manufacturing",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+    "Topic :: System :: Emulators",
+]
+dependencies = [
+    "fastapi>=0.138.0",
+    "pyyaml>=6.0.3",
+    "uvicorn[standard]>=0.49.0",
+    "websockets>=16.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USER/plcemulator"
+Repository = "https://github.com/YOUR_USER/plcemulator"
+Documentation = "https://github.com/YOUR_USER/plcemulator"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-playwright>=0.8.0",
+]

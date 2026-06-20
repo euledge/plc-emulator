@@ -1,0 +1,60 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+nav {
+  background: #16213e;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  border-bottom: 1px solid #0f3460;
+}
+nav h1 { font-size: 1.2rem; color: #e94560; }
+#nav-links { display: flex; gap: 1rem; }
+.nav-link { color: #aaa; text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 4px; }
+.nav-link:hover, .nav-link.active { color: #fff; background: #0f3460; }
+#lang-switcher { margin-left: auto; }
+#lang-switcher button {
+  background: #0f3460; color: #aaa; border: 1px solid #333; padding: 0.2rem 0.5rem; cursor: pointer;
+}
+#lang-switcher button.active { color: #fff; border-color: #e94560; }
+main { flex: 1; overflow: auto; padding: 1rem; }
+.page { display: none; }
+.page.active { display: block; }
+.panel {
+  background: #16213e; border: 1px solid #0f3460; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;
+}
+.panel h3 { margin-bottom: 0.5rem; color: #e94560; }
+label { display: block; margin: 0.5rem 0 0.2rem; color: #aaa; font-size: 0.85rem; }
+select, input {
+  width: 100%; padding: 0.4rem; background: #0f3460; color: #e0e0e0; border: 1px solid #333; border-radius: 4px;
+}
+input[type="number"] { width: 120px; }
+button {
+  padding: 0.5rem 1rem; background: #e94560; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+}
+button:hover { opacity: 0.85; }
+button.secondary { background: #0f3460; color: #aaa; }
+.btn-row { display: flex; gap: 0.5rem; margin: 0.5rem 0; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 0.3rem 0.5rem; text-align: left; border-bottom: 1px solid #0f3460; }
+th { color: #e94560; font-size: 0.85rem; }
+td.editable { cursor: pointer; }
+td.editable:hover { background: #0f3460; }
+.log-entry { font-family: monospace; font-size: 0.85rem; padding: 0.2rem; border-bottom: 1px solid #0f3460; }
+.log-entry.tx { color: #4fc3f7; }
+.log-entry.rx { color: #81c784; }
+textarea {
+  width: 100%; min-height: 300px; background: #0f3460; color: #e0e0e0; border: 1px solid #333;
+  border-radius: 4px; padding: 0.5rem; font-family: monospace;
+}
+.form-row { display: flex; gap: 1rem; align-items: flex-start; }
+.form-group { flex: 1; }
+.stats { display: flex; gap: 1rem; margin-top: 0.5rem; }
+.stat-item { background: #0f3460; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.85rem; }

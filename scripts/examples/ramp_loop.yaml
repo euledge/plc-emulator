@@ -1,0 +1,7 @@
+# D200を0→1000まで10秒かけてランプアップし、ループする
+- type: ramp
+  target: D200
+  start_value: 0
+  end_value: 1000
+  duration_ms: 10000
+  loop: true

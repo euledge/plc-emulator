@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLCEmulator</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<nav id="navbar">
+  <h1>PLCEmulator</h1>
+  <div id="nav-links">
+    <a href="#" class="nav-link active" data-page="settings">Settings</a>
+    <a href="#" class="nav-link" data-page="monitor">Device Monitor</a>
+    <a href="#" class="nav-link" data-page="log">Comm Log</a>
+    <a href="#" class="nav-link" data-page="scripts">Scripts</a>
+  </div>
+  <div id="lang-switcher">
+    <button data-lang="ja">JA</button>
+    <button data-lang="en">EN</button>
+  </div>
+</nav>
+<main>
+  <div id="page-settings" class="page active"></div>
+  <div id="page-monitor" class="page"></div>
+  <div id="page-log" class="page"></div>
+  <div id="page-scripts" class="page"></div>
+</main>
+<script src="/static/js/i18n.js"></script>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/settings.js"></script>
+<script src="/static/js/device_monitor.js"></script>
+<script src="/static/js/comm_log.js"></script>
+<script src="/static/js/script_editor.js"></script>
+</body>
+</html>
