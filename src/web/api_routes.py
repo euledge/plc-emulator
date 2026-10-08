@@ -183,7 +183,7 @@ def get_devices(device_type: str, start: int = 0, count: int = 10, request: Requ
 
 
 @router.put("/devices/{device_type}/{address}")
-def put_device(device_type: str, address: int, update: DeviceValueUpdate, request: Request = None):
+async def put_device(device_type: str, address: int, update: DeviceValueUpdate, request: Request = None):
     state = get_state(request)
     state.device_manager.write_word(device_type.upper(), address, update.value)
     return {"status": "ok"}

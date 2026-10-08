@@ -32,7 +32,36 @@ class AppState:
         self.ws_manager = WebSocketManager()
         self.persistence = PersistenceManager(self.device_manager)
         self.plc_server: TcpServer | UdpServer | None = None
+        try:
+            self._loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
+        self.device_manager.on_change(self._on_device_change)
 
+    def _on_device_change(self, device_type: str, address: int, value: int | bool) -> None:
+        msg = {
+            "type": "device_update",
+            "device": device_type,
+            "address": address,
+            "value": int(value) if isinstance(value, bool) else value,
+        }
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            try:
+                loop = asyncio.get_running_loop()
+                self._loop = loop
+            except RuntimeError:
+                loop = None
+
+        if loop is not None and not loop.is_closed():
+            try:
+                running = asyncio.get_running_loop()
+                if running is loop:
+                    loop.create_task(self.ws_manager.broadcast(msg))
+                else:
+                    asyncio.run_coroutine_threadsafe(self.ws_manager.broadcast(msg), loop)
+            except RuntimeError:
+                asyncio.run_coroutine_threadsafe(self.ws_manager.broadcast(msg), loop)
 
 def create_app(state: AppState | None = None) -> FastAPI:
     app = FastAPI(title="PLCEmulator")
@@ -56,6 +85,19 @@ def create_app(state: AppState | None = None) -> FastAPI:
         try:
             while True:
                 data = await ws.receive_json()
+                if isinstance(data, dict) and data.get("type") == "monitor_add":
+                    dev = str(data.get("device", "D")).upper()
+                    try:
+                        addr = int(data.get("address", 0))
+                        val = state.device_manager.read_word(dev, addr)
+                        await ws.send_json({
+                            "type": "device_update",
+                            "device": dev,
+                            "address": addr,
+                            "value": val,
+                        })
+                    except Exception:
+                        pass
         except WebSocketDisconnect:
             state.ws_manager.disconnect(ws)
 

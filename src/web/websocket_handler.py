@@ -20,7 +20,7 @@ class WebSocketManager:
 
     async def broadcast(self, message: dict) -> None:
         dead = []
-        for ws in self._connections:
+        for ws in list(self._connections):
             try:
                 await ws.send_json(message)
             except Exception:
