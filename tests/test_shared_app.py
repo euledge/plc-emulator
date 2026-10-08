@@ -92,11 +92,149 @@ async def test_shared_state_between_plc_and_rest():
 async def test_full_app_start_stop():
     cfg = ConfigManager()
     cfg.port = 0
-    # Use random free port for web
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     assert app.server is not None
     assert app._uvicorn_server is not None
+    assert app.actual_plc_port > 0
+    assert app.actual_web_port > 0
     await app.stop()
     assert app.server is None
     assert app._uvicorn_server is None
+
+
+async def send_udp_request(host: str, port: int, data: bytes) -> bytes:
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+
+    class ClientProtocol(asyncio.DatagramProtocol):
+        def __init__(self) -> None:
+            self.transport: asyncio.DatagramTransport | None = None
+
+        def connection_made(self, transport: asyncio.DatagramTransport) -> None:
+            self.transport = transport
+            self.transport.sendto(data)
+
+        def datagram_received(self, resp_data: bytes, addr: tuple[str, int]) -> None:
+            if not future.done():
+                future.set_result(resp_data)
+            if self.transport:
+                self.transport.close()
+
+        def error_received(self, exc: Exception) -> None:
+            if not future.done():
+                future.set_exception(exc)
+
+    transport, _ = await loop.create_datagram_endpoint(
+        ClientProtocol,
+        remote_addr=(host, port),
+    )
+    try:
+        return await asyncio.wait_for(future, timeout=2.0)
+    finally:
+        transport.close()
+
+
+@pytest.mark.asyncio
+async def test_shared_state_between_udp_and_rest():
+    cfg = ConfigManager()
+    cfg.port = 0
+    cfg.transport = "udp"
+
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    plc_port = app.actual_plc_port
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+    ) as client:
+        # 1. Write via REST API: D300 = 1234
+        put_resp = await client.put("/api/devices/D/300", json={"value": 1234})
+        assert put_resp.status_code == 200
+
+        # 2. Read back via UDP MC 3E binary protocol
+        resp = await send_udp_request(
+            "127.0.0.1", plc_port, make_3e_read_req(DeviceCode3E.D, 300, 1)
+        )
+        assert resp[:2] == b"\xD0\x00"
+        val = struct.unpack_from("<H", resp, 10)[0]
+        assert val == 1234, "UDP read must match value written by REST"
+
+        # 3. Write via UDP MC 3E binary protocol: D400 = 5678
+        write_resp = await send_udp_request(
+            "127.0.0.1", plc_port, make_3e_write_req(DeviceCode3E.D, 400, [5678])
+        )
+        assert write_resp[:2] == b"\xD0\x00"
+        assert struct.unpack_from("<H", write_resp, 8)[0] == 0
+
+        # 4. Read back via REST API
+        get_resp = await client.get("/api/devices/D?start=400&count=1")
+        assert get_resp.status_code == 200
+        assert get_resp.json()["values"] == [5678], "REST read must match value written by UDP"
+
+    await app.stop_plc_server()
+    assert app.server is None
+
+
+@pytest.mark.asyncio
+async def test_concurrent_real_sockets_plc_and_web():
+    """Verify that both PLC and Web servers are accessible via real OS network sockets simultaneously."""
+    cfg = ConfigManager()
+    cfg.port = 0
+    cfg.transport = "tcp"
+
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start()
+
+    web_port = app.actual_web_port
+    plc_port = app.actual_plc_port
+    assert web_port > 0
+    assert plc_port > 0
+
+    try:
+        # Communicate with Web server over real HTTP socket
+        async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{web_port}") as client:
+            resp = await client.get("/api/config")
+            assert resp.status_code == 200
+            assert resp.json()["transport"] == "tcp"
+
+            put_resp = await client.put("/api/devices/D/500", json={"value": 7777})
+            assert put_resp.status_code == 200
+
+        # Concurrently communicate with PLC server over real TCP socket
+        reader, writer = await asyncio.open_connection("127.0.0.1", plc_port)
+        try:
+            writer.write(make_3e_read_req(DeviceCode3E.D, 500, 1))
+            await writer.drain()
+            tcp_resp = await asyncio.wait_for(reader.read(1024), timeout=2.0)
+            assert tcp_resp[:2] == b"\xD0\x00"
+            val = struct.unpack_from("<H", tcp_resp, 10)[0]
+            assert val == 7777, "Real TCP read must match value written by real Web HTTP"
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await app.stop()
+
+    assert app.server is None
+    assert app._uvicorn_server is None
+
+
+@pytest.mark.asyncio
+async def test_start_rollback_on_web_failure(monkeypatch):
+    """Verify that PLC server is cleaned up and stopped if web server fails during startup."""
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+
+    async def mock_start_web_failure():
+        raise RuntimeError("Simulated web startup failure")
+
+    monkeypatch.setattr(app, "start_web_server", mock_start_web_failure)
+
+    with pytest.raises(RuntimeError, match="Simulated web startup failure"):
+        await app.start()
+
+    # PLC server must be safely cleaned up
+    assert app.server is None
+

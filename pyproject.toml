@@ -41,3 +41,9 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--ignore=tests/test_e2e.py"
+filterwarnings = [
+    "ignore:websockets.legacy is deprecated:DeprecationWarning",
+    "ignore:websockets.server.WebSocketServerProtocol is deprecated:DeprecationWarning",
+    "ignore:.*Using `httpx` with `starlette.testclient`.*:Warning",
+]
+

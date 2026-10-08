@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +10,10 @@ from src.persistence.persistence_manager import PersistenceManager
 from src.server.latency import LatencyEmulator
 from src.web.api_routes import router
 from src.web.websocket_handler import WebSocketManager
+
+if TYPE_CHECKING:
+    from src.server.tcp_server import TcpServer
+    from src.server.udp_server import UdpServer
 
 
 class AppState:
@@ -24,7 +29,7 @@ class AppState:
         self.latency = latency or LatencyEmulator()
         self.ws_manager = WebSocketManager()
         self.persistence = PersistenceManager(self.device_manager)
-        self.plc_server = None
+        self.plc_server: TcpServer | UdpServer | None = None
 
 
 def create_app(state: AppState | None = None) -> FastAPI:
