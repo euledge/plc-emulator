@@ -44,9 +44,11 @@ async def test_plc_tcp_write_broadcasts_to_websocket():
                 await writer.wait_closed()
 
             # Verify WebSocket received the update
-            msg_raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
-            msg = json.loads(msg_raw)
-            assert msg["type"] == "device_update"
+            while True:
+                msg_raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
+                msg = json.loads(msg_raw)
+                if msg.get("type") == "device_update":
+                    break
             assert msg["device"] == "D"
             assert msg["address"] == 100
             assert msg["value"] == 7890
@@ -108,9 +110,11 @@ async def test_disconnected_websocket_does_not_break_subsequent_broadcasts():
             await writer.wait_closed()
 
         # ws2 must still receive the update without any hang or failure
-        msg_raw = await asyncio.wait_for(ws2.recv(), timeout=2.0)
-        msg = json.loads(msg_raw)
-        assert msg["type"] == "device_update"
+        while True:
+            msg_raw = await asyncio.wait_for(ws2.recv(), timeout=2.0)
+            msg = json.loads(msg_raw)
+            if msg.get("type") == "device_update":
+                break
         assert msg["device"] == "D"
         assert msg["address"] == 300
         assert msg["value"] == 9999

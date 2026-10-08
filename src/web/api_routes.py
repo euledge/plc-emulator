@@ -138,7 +138,7 @@ async def apply_config_update(state, update: ConfigUpdate):
             device_manager=state.device_manager,
             latency_emulator=state.latency,
             protocol_handler=create_protocol_handler(new_protocol),
-            on_comm_log=old_server.on_comm_log,
+            on_comm_log=old_server.on_comm_log or state.on_comm_log,
         )
         try:
             await new_server.start()
