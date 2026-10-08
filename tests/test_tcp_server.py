@@ -308,4 +308,3 @@ async def test_tcp_3e_response_preserves_request_access_path():
         writer.close()
         await writer.wait_closed()
         await server.stop()
-

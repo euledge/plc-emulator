@@ -157,4 +157,3 @@ class TcpServer:
             except Exception:
                 pass
             logger.info("Client disconnected: %s", peername)
-
