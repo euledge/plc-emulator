@@ -291,12 +291,9 @@ async def test_unexpected_web_exit_stops_plc_server():
     # Wait for lifecycle monitor to detect exit and shut down
     await asyncio.wait_for(app.wait_until_stopped(), timeout=3.0)
 
-    # Allow background stop task to complete
-    for _ in range(50):
-        if app.server is None:
-            break
-        await asyncio.sleep(0.05)
-
-    assert app.server is None, "PLC server must be stopped after unexpected Web server exit"
+    assert app.server is None, "wait_until_stopped must wait for PLC cleanup"
+    with pytest.raises(OSError):
+        await asyncio.open_connection("127.0.0.1", plc_port)
+    await app.stop()
 
 

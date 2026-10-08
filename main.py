@@ -47,6 +47,7 @@ class PLCEmulatorApp:
         self._monitor_task: asyncio.Task | None = None
         self._is_stopping: bool = False
         self._stop_event: asyncio.Event = asyncio.Event()
+        self._stop_lock = asyncio.Lock()
 
     @property
     def server(self) -> TcpServer | UdpServer | None:
@@ -145,21 +146,16 @@ class PLCEmulatorApp:
             self._uvicorn_task = None
 
     async def _monitor_lifecycle(self) -> None:
-        """Monitor web server and PLC server tasks; if either exits unexpectedly, stop both."""
+        """Stop the PLC server if the Web server exits unexpectedly."""
         try:
             while not self._is_stopping:
                 if self._uvicorn_task and self._uvicorn_task.done():
-                    if not self._is_stopping:
-                        logger.error("Web server exited unexpectedly. Triggering shutdown...")
-                        break
+                    logger.error("Web server exited unexpectedly. Triggering shutdown...")
+                    await self.stop()
+                    return
                 await asyncio.sleep(0.1)
         except asyncio.CancelledError:
-            return
-        finally:
-            if not self._is_stopping:
-                self._stop_event.set()
-                # Stop remaining components
-                asyncio.create_task(self.stop())
+            pass
 
     async def wait_until_stopped(self) -> None:
         """Block until the emulator is stopped (either intentionally or unexpectedly)."""
@@ -185,32 +181,38 @@ class PLCEmulatorApp:
         )
 
     async def stop(self) -> None:
-        self._is_stopping = True
-        self._stop_event.set()
-        if self._monitor_task and not self._monitor_task.done():
-            self._monitor_task.cancel()
+        async with self._stop_lock:
+            if self._is_stopping:
+                return
+            self._is_stopping = True
             try:
-                await self._monitor_task
-            except (asyncio.CancelledError, Exception):
-                pass
-            self._monitor_task = None
+                monitor = self._monitor_task
+                if monitor is not None and monitor is not asyncio.current_task():
+                    monitor.cancel()
+                    try:
+                        await monitor
+                    except asyncio.CancelledError:
+                        pass
+                self._monitor_task = None
 
-        errors: list[BaseException] = []
-        try:
-            await self.stop_web_server()
-        except BaseException as e:
-            logger.error("Error stopping web server: %s", e)
-            errors.append(e)
+                errors: list[BaseException] = []
+                try:
+                    await self.stop_web_server()
+                except BaseException as e:
+                    logger.error("Error stopping web server: %s", e)
+                    errors.append(e)
 
-        try:
-            await self.stop_plc_server()
-        except BaseException as e:
-            logger.error("Error stopping PLC server: %s", e)
-            errors.append(e)
+                try:
+                    await self.stop_plc_server()
+                except BaseException as e:
+                    logger.error("Error stopping PLC server: %s", e)
+                    errors.append(e)
 
-        logger.info("PLCEmulator stopped.")
-        if errors:
-            raise errors[0]
+                logger.info("PLCEmulator stopped.")
+                if errors:
+                    raise errors[0]
+            finally:
+                self._stop_event.set()
 
 
 async def main() -> None:

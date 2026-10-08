@@ -2,6 +2,12 @@
 
 All notable changes to PLCEmulator, tracked by release date.
 
+## Unreleased
+
+### Fixed
+
+- Unexpected Web server exit now completes PLC shutdown before signaling stopped, without duplicate cleanup (#3).
+
 ## June 20, 2026 — v0.1.0
 
 ### ✨ New
