@@ -23,7 +23,7 @@ const SettingsPage = {
           </div>
           <div class="form-group">
             <label data-i18n="config.plc_model">PLC Model</label>
-            <select id="plc_model"><option>Q</option><option>L</option><option>FX</option></select>
+            <select id="plc_model"><option value="Q03UDE">Q03UDE (MELSEC-Q)</option><option value="Q06UDE">Q06UDE (MELSEC-Q)</option><option value="R04CPU">R04CPU (MELSEC iQ-R)</option><option value="R08CPU">R08CPU (MELSEC iQ-R)</option><option value="FX5U">FX5U (MELSEC iQ-F)</option><option value="L06CPU">L06CPU (MELSEC-L)</option></select>
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@ const SettingsPage = {
     document.getElementById('transport').value = cfg.transport || 'TCP';
     document.getElementById('port').value = cfg.port || 5000;
     document.getElementById('data_format').value = cfg.data_format || 'BINARY';
-    document.getElementById('plc_model').value = cfg.plc_model || 'Q';
+    document.getElementById('plc_model').value = cfg.plc_model || 'Q03UDE';
     document.getElementById('latency_mode').value = cfg.latency?.mode || 'none';
     document.getElementById('latency_min').value = cfg.latency?.min || 0;
     document.getElementById('latency_max').value = cfg.latency?.max || 0;

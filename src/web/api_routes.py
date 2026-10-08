@@ -50,10 +50,69 @@ def get_config(request: Request):
 
 
 @router.put("/config")
-def put_config(request: Request, update: ConfigUpdate):
+async def put_config(request: Request, update: ConfigUpdate):
     state = get_state(request)
+    from src.device.plc_models import PLC_MODELS
+    from src.server.tcp_server import TcpServer
+    from src.server.udp_server import UdpServer
+
+    # 1. Validate PLC model if provided
+    if update.plc_model is not None:
+        model = PLC_MODELS.get(update.plc_model)
+        if not model:
+            raise HTTPException(400, f"Unknown PLC model: {update.plc_model}")
+        state.device_manager.plc_model = model
+
+    # 2. Validate port if provided (0 allows OS ephemeral port allocation, e.g. in tests)
+    if update.port is not None and (update.port < 0 or update.port > 65535):
+        raise HTTPException(400, f"Invalid port: {update.port}")
+
+    # 3. Validate transport if provided
+    if update.transport is not None and update.transport.lower() not in ("tcp", "udp"):
+        raise HTTPException(400, f"Invalid transport: {update.transport}")
+
+    # 4. Check if running PLC server needs restart
+    new_transport = (update.transport or state.config.transport).lower()
+    new_port = update.port if update.port is not None else state.config.port
+
+    if state.plc_server is not None and (
+        update.port is not None or update.transport is not None
+    ):
+        old_server = state.plc_server
+        if new_transport == "tcp":
+            new_server = TcpServer(
+                port=new_port,
+                device_manager=state.device_manager,
+                latency_emulator=state.latency,
+            )
+        else:
+            new_server = UdpServer(
+                port=new_port,
+                device_manager=state.device_manager,
+                latency_emulator=state.latency,
+            )
+
+        try:
+            await old_server.stop()
+            await new_server.start()
+            state.plc_server = new_server
+        except Exception as e:
+            try:
+                await old_server.start()
+            except Exception:
+                pass
+            raise HTTPException(400, f"Cannot switch communication server: {e}")
+
+    # 5. Update latency if provided
+    if update.latency_mode is not None:
+        state.latency.mode = update.latency_mode
+    if update.latency_params is not None:
+        state.latency.params = update.latency_params
+
+    # 6. Save into state.config
     for key, val in update.model_dump(exclude_none=True).items():
         setattr(state.config, key, val)
+
     return state.config.to_dict()
 
 
