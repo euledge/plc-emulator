@@ -204,3 +204,108 @@ async def test_tcp_3e_latency_fixed_and_timeout():
         await writer.wait_closed()
         await server.stop()
 
+
+@pytest.mark.asyncio
+async def test_tcp_3e_short_write_does_not_change_device_values():
+    server = TcpServer(port=0)
+    await server.start()
+    reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
+    try:
+        request = bytearray(make_3e_write_req(DeviceCode3E.D, 100, [1234]))
+        struct.pack_into("<H", request, 18, 2)  # Claim two values, carry only one.
+        writer.write(request)
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(10), timeout=2)
+        assert struct.unpack_from("<H", response, 8)[0] == 0xC061
+
+        writer.write(make_3e_read_req(DeviceCode3E.D, 100, 2))
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(14), timeout=2)
+        assert struct.unpack_from("<HH", response, 10) == (0, 0)
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_tcp_3e_oversized_read_returns_error_and_keeps_connection():
+    server = TcpServer(port=0)
+    await server.start()
+    reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
+    try:
+        writer.write(make_3e_read_req(DeviceCode3E.D, 0, 32767))
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(10), timeout=2)
+        assert struct.unpack_from("<H", response, 8)[0] == 0xC05B
+
+        writer.write(make_3e_read_req(DeviceCode3E.D, 0, 1))
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(12), timeout=2)
+        assert struct.unpack_from("<H", response, 8)[0] == 0
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_tcp_second_connection_does_not_displace_active_client():
+    server = TcpServer(port=0)
+    await server.start()
+    first_reader, first_writer = await asyncio.open_connection("127.0.0.1", server.port)
+    second_reader, second_writer = await asyncio.open_connection("127.0.0.1", server.port)
+    try:
+        assert await asyncio.wait_for(second_reader.read(1), timeout=2) == b""
+        first_writer.write(make_3e_read_req(DeviceCode3E.D, 0, 1))
+        await first_writer.drain()
+        response = await asyncio.wait_for(first_reader.readexactly(12), timeout=2)
+        assert struct.unpack_from("<H", response, 8)[0] == 0
+    finally:
+        first_writer.close()
+        second_writer.close()
+        await first_writer.wait_closed()
+        await second_writer.wait_closed()
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_tcp_3e_response_preserves_request_access_path():
+    server = TcpServer(port=0)
+    await server.start()
+    reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
+    route = b"\x12\x34\x56\x78"
+    try:
+        write = bytearray(make_3e_write_req(DeviceCode3E.D, 100, [1234]))
+        write[2:6] = route
+        writer.write(write)
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(10), timeout=2)
+        assert response[2:6] == route
+        assert struct.unpack_from("<H", response, 8)[0] == 0
+
+        read = bytearray(make_3e_read_req(DeviceCode3E.D, 100, 1))
+        read[2:6] = route
+        writer.write(read)
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(12), timeout=2)
+        assert response[2:6] == route
+        assert struct.unpack_from("<H", response, 10)[0] == 1234
+
+        struct.pack_into("<H", read, 10, 0xFFFF)
+        writer.write(read)
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(10), timeout=2)
+        assert response[2:6] == route
+        assert struct.unpack_from("<H", response, 8)[0] == 0xC059
+
+        writer.write(b"\x50\x00" + route + b"\x02\x00\x00\x00")
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readexactly(10), timeout=2)
+        assert response[2:6] == route
+        assert struct.unpack_from("<H", response, 8)[0] == 0xC050
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        await server.stop()
+

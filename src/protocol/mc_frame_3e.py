@@ -15,6 +15,7 @@ class McFrame3E(ProtocolHandler):
         if len(data) < 10:
             raise ValueError("Frame too short for 3E")
         req = ParsedRequest()
+        req.access_path = data[2:6]
         req.data = data
 
         data_len = struct.unpack_from("<H", data, 6)[0]
@@ -49,7 +50,7 @@ class McFrame3E(ProtocolHandler):
 
         resp = (
             self.SUBHEADER_RESPONSE
-            + b"\x00\x00\x00\x00"
+            + (parsed.access_path if parsed is not None else b"\x00\x00\x00\x00")
             + data_len
             + resp_data
         )

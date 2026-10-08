@@ -1,7 +1,7 @@
 # PLCEmulator 開発タスク
 
 > [!WARNING] **重大な未配線・未接続の課題**
-> 単体モジュール（プロトコルパーサー、コマンド処理器、デバイスメモリ等）の実装およびユニットテストは完了していますが、**通信サーバ（`tcp_server.py` / `udp_server.py`）が受信電文を読み捨て／pass しており、プロトコル処理・応答送信パイプラインが接続されていません**。
+> 現在、TCPは3Eバイナリ電文を解析・実行して応答しますが、**UDPサーバ（`udp_server.py`）は受信処理がpassのまま**です。1E/4E/SLMPなど他形式の実通信接続も未完了です。
 > また、`main.py` における Web サーバ（FastAPI）と PLC サーバの統合起動、通信ログの WebSocket 配信も未配線です。
 
 > **ステータス凡例**:
@@ -16,17 +16,17 @@
 
 | フェーズ | 完了 / 全体 | 進捗率 | 状態と主な未対応事項 |
 | :--- | :---: | :---: | :--- |
-| **Phase 1: コア基盤** | 8 / 11 | 72.7% | **TCP/UDPサーバがデータ読み捨て/pass状態**、`main.py`の統合配線未完 |
-| **Phase 2: MC 3Eフレーム** | 6 / 7 | 85.7% | 単体実装完了、**実通信サーバ経由の統合パイプライン未接続** |
-| **Phase 3: 1E / 4E / SLMP + ASCII** | 5 / 7 | 71.4% | 単体実装完了、**3E ASCII未対応**、**実通信未接続** |
+| **Phase 1: コア基盤** | 9 / 11 | 81.8% | TCPの3Eバイナリ応答は実装済み。**UDPの受信処理はpass**、`main.py`の統合配線未完 |
+| **Phase 2: MC 3Eフレーム** | 7 / 7 | 100% | 単体実装とTCP経由の3Eバイナリ読書を確認済み |
+| **Phase 3: 1E / 4E / SLMP + ASCII** | 6 / 7 | 85.7% | **3E ASCII未対応**、1E/4E/SLMPの実通信未接続 |
 | **Phase 4: スクリプトエンジン** | 6 / 6 | 100% | 単体エンジン・DSL・サンプル完備 |
 | **Phase 5: Web UI** | 12 / 13 | 92.3% | 画面・API・i18n完備、**通信ログのサーバ側ブロードキャスト未配線** |
-| **Phase 6: 仕上げ** | 2 / 5 | 40.0% | **MCプロトコル実通信E2Eテスト未作成**、エラー切替未完、DSLドキュメント未作成 |
-| **合計** | **39 / 49** | **79.6%** | **実通信パイプラインの配線が最優先課題** |
+| **Phase 6: 仕上げ** | 2 / 5 | 40.0% | TCPの3E実通信テストは追加済み。**UDPを含む全体統合テスト**、エラー切替、DSLドキュメントが未完 |
+| **合計** | **42 / 49** | **85.7%** | **UDPおよび他形式の実通信接続が未完了** |
 
 ---
 
-## Phase 1: コア基盤 (8/11 完了)
+## Phase 1: コア基盤 (9/11 完了)
 - [x] プロジェクト構造作成（ディレクトリ、`__init__.py`）
 - [x] `requirements.txt` 作成（※pyproject.toml (uv) にて依存関係管理を構成完了）
 - [ ] `main.py` エントリーポイント（⚠️ **要対応**: Web UIとPLCサーバの同時起動、プロトコルハンドラーのDI・初期化配線が未実装）
@@ -35,11 +35,11 @@
 - [x] `src/device/device_definition.py` デバイス型定義
 - [x] `src/device/plc_models.py` PLC機種プロファイル
 - [x] `src/device/device_manager.py` デバイスメモリ管理
-- [ ] `src/server/tcp_server.py` TCPサーバ（⚠️ **重大**: 受信データを`read()`するのみで読み捨て。プロトコル判定・コマンド処理・レイテンシ・応答送信パイプラインが未接続）
+- [x] `src/server/tcp_server.py` TCPサーバ（3Eバイナリの読書・レイテンシ・応答を実通信で確認。1E/4E/SLMP等は別途対応）
 - [ ] `src/server/udp_server.py` UDPサーバ（⚠️ **重大**: `datagram_received`が`pass`のスタブ状態。プロトコル処理・応答送信パイプラインが未接続）
 - [x] `src/server/latency.py` レイテンシエミュレータ（単体実装・テスト完了）
 
-## Phase 2: MCプロトコル 3Eフレーム (6/7 完了)
+## Phase 2: MCプロトコル 3Eフレーム (7/7 完了)
 - [x] `src/protocol/base.py` プロトコルハンドラー基底
 - [x] `src/protocol/device_parser.py` デバイスアドレス解析
 - [x] `src/protocol/mc_frame_3e.py` 3Eフレーム（バイナリ・単体実装完了）
@@ -47,9 +47,9 @@
 - [x] ユニットテスト: `test_device_manager.py`
 - [x] ユニットテスト: `test_mc_frame_3e.py`
 - [x] ユニットテスト: `test_command_processor.py`
-*(※注: プロトコル処理単体はパスするが、TCP/UDPサーバ経由での実通信応答はPhase 1の未配線により不可)*
+*(※注: 3EバイナリのTCP読書は実通信テストあり。UDPと他形式の実通信は未対応)*
 
-## Phase 3: 1E / 4E / SLMP + ASCII (5/7 完了)
+## Phase 3: 1E / 4E / SLMP + ASCII (6/7 完了)
 - [x] `src/protocol/mc_frame_1e.py` 1Eフレーム（単体実装完了）
 - [x] `src/protocol/mc_frame_4e.py` 4Eフレーム（単体実装完了）
 - [x] `src/protocol/slmp_handler.py` SLMP拡張デバイス指定（単体実装完了）
@@ -84,6 +84,6 @@
 ## Phase 6: 仕上げ (2/5 完了)
 - [x] デバイス値永続化（JSON保存/読込: `src/persistence/persistence_manager.py`）
 - [ ] エラー応答切替機能（⚠️ **未完了**: ConfigManagerにプロパティのみ保持、プロトコル層・UIへの反映が未実装）
-- [ ] 全体統合テスト（⚠️ **要対応**: Web UI遷移のE2Eテストのみ存在。**TCP/UDPクライアントからMCプロトコル電文を送受信する実通信統合テストが未作成**）
+- [ ] 全体統合テスト（TCP経由の3Eバイナリ読書・遅延・再接続のテストは追加済み。UDPやWeb UIを含む全体統合テストは未完）
 - [x] `README.md` 作成 (`README.md`, `README.ja.md`)
 - [ ] `docs/script_dsl_reference.md` DSLリファレンス（⚠️ **未作成**: ファイルが存在しない）
