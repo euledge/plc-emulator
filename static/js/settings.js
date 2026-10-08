@@ -11,15 +11,15 @@ const SettingsPage = {
           </div>
           <div class="form-group">
             <label data-i18n="config.transport">Transport</label>
-            <select id="transport"><option>TCP</option><option>UDP</option></select>
+            <select id="transport"><option value="tcp">TCP</option><option value="udp">UDP</option></select>
           </div>
           <div class="form-group">
             <label data-i18n="config.port">Port</label>
-            <input type="number" id="port" min="1" max="65535">
+            <input type="number" id="port" min="0" max="65535">
           </div>
           <div class="form-group">
             <label data-i18n="config.format">Format</label>
-            <select id="data_format"><option>BINARY</option><option>ASCII</option></select>
+            <select id="data_format"><option value="binary">BINARY</option><option value="ascii">ASCII</option></select>
           </div>
           <div class="form-group">
             <label data-i18n="config.plc_model">PLC Model</label>
@@ -34,16 +34,18 @@ const SettingsPage = {
             <label data-i18n="latency.mode">Mode</label>
             <select id="latency_mode"><option value="none" data-i18n="latency.none">None</option><option value="fixed" data-i18n="latency.fixed">Fixed</option><option value="random" data-i18n="latency.random">Random</option><option value="normal" data-i18n="latency.normal">Normal</option><option value="timeout" data-i18n="latency.timeout">Timeout</option></select>
           </div>
-          <div class="form-group"><label>min ms</label><input type="number" id="latency_min"></div>
-          <div class="form-group"><label>max ms</label><input type="number" id="latency_max"></div>
-          <div class="form-group"><label>mean ms</label><input type="number" id="latency_mean"></div>
-          <div class="form-group"><label>std ms</label><input type="number" id="latency_std"></div>
+          <div class="form-group"><label>fixed ms</label><input type="number" id="latency_delay" min="0"></div>
+          <div class="form-group"><label>min ms</label><input type="number" id="latency_min" min="0"></div>
+          <div class="form-group"><label>max ms</label><input type="number" id="latency_max" min="0"></div>
+          <div class="form-group"><label>mean ms</label><input type="number" id="latency_mean" min="0"></div>
+          <div class="form-group"><label>std ms</label><input type="number" id="latency_std" min="0"></div>
+          <div class="form-group"><label>timeout rate</label><input type="number" id="latency_timeout_rate" min="0" max="1" step="0.01"></div>
         </div>
         <div class="btn-row">
           <button id="save_config">Save</button>
           <button id="btn_save_state" class="secondary">Save State</button>
           <button id="btn_load_state" class="secondary">Load State</button>
-          <span id="server_status" style="margin-left:auto;padding:0.3rem 0.6rem;border-radius:4px;">Stopped</span>
+          <span id="server_status" role="status" aria-live="polite" style="margin-left:auto;padding:0.3rem 0.6rem;border-radius:4px;">Ready</span>
         </div>
       </div>`;
     document.getElementById('save_config').addEventListener('click', () => this.saveConfig());
@@ -57,33 +59,65 @@ const SettingsPage = {
     const cfg = await resp.json();
     if (!document.getElementById('protocol')) return;
     document.getElementById('protocol').value = cfg.protocol || '3E';
-    document.getElementById('transport').value = cfg.transport || 'TCP';
-    document.getElementById('port').value = cfg.port || 5000;
-    document.getElementById('data_format').value = cfg.data_format || 'BINARY';
+    document.getElementById('transport').value = (cfg.transport || 'tcp').toLowerCase();
+    document.getElementById('port').value = cfg.port ?? 5000;
+    document.getElementById('data_format').value = (cfg.data_format || 'binary').toLowerCase();
     document.getElementById('plc_model').value = cfg.plc_model || 'Q03UDE';
-    document.getElementById('latency_mode').value = cfg.latency?.mode || 'none';
-    document.getElementById('latency_min').value = cfg.latency?.min || 0;
-    document.getElementById('latency_max').value = cfg.latency?.max || 0;
-    document.getElementById('latency_mean').value = cfg.latency?.mean || 0;
-    document.getElementById('latency_std').value = cfg.latency?.std || 0;
+    document.getElementById('latency_mode').value = cfg.latency_mode || 'none';
+    const params = cfg.latency_params || {};
+    document.getElementById('latency_delay').value = params.delay_ms ?? 0;
+    document.getElementById('latency_min').value = params.min_ms ?? 0;
+    document.getElementById('latency_max').value = params.max_ms ?? 0;
+    document.getElementById('latency_mean').value = params.mean_ms ?? 0;
+    document.getElementById('latency_std').value = params.std_ms ?? 0;
+    document.getElementById('latency_timeout_rate').value = params.timeout_rate ?? 0;
   },
 
   async saveConfig() {
+    const status = document.getElementById('server_status');
+    const showStatus = (message, error) => {
+      status.textContent = message;
+      status.style.color = error ? '#ff8a8a' : '#8be6bd';
+    };
+    const port = document.getElementById('port');
+    if (!port.value || !port.checkValidity()) {
+      showStatus('Invalid port', true);
+      return;
+    }
+    const mode = document.getElementById('latency_mode').value;
+    const number = (id) => Number(document.getElementById(id).value);
+    let params = {};
+    if (mode === 'fixed') {
+      params = { delay_ms: number('latency_delay') };
+    } else if (mode === 'random') {
+      params = { min_ms: number('latency_min'), max_ms: number('latency_max') };
+    } else if (mode === 'normal') {
+      params = { mean_ms: number('latency_mean'), std_ms: number('latency_std') };
+    } else if (mode === 'timeout') {
+      params = { timeout_rate: number('latency_timeout_rate') };
+    }
     const body = {
       protocol: document.getElementById('protocol').value,
       transport: document.getElementById('transport').value,
-      port: parseInt(document.getElementById('port').value),
+      port: Number(port.value),
       data_format: document.getElementById('data_format').value,
       plc_model: document.getElementById('plc_model').value,
-      latency: {
-        mode: document.getElementById('latency_mode').value,
-        min: parseInt(document.getElementById('latency_min').value),
-        max: parseInt(document.getElementById('latency_max').value),
-        mean: parseInt(document.getElementById('latency_mean').value),
-        std: parseInt(document.getElementById('latency_std').value),
-      }
+      latency_mode: mode,
+      latency_params: params,
     };
-    await fetch('/api/config', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    try {
+      const response = await fetch('/api/config', {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        showStatus(typeof result.detail === 'string' ? result.detail : `Save failed (${response.status})`, true);
+        return;
+      }
+      showStatus('Saved', false);
+    } catch (error) {
+      showStatus(`Save failed: ${error.message}`, true);
+    }
   },
 
   async saveState() {

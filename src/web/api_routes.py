@@ -1,9 +1,10 @@
 import asyncio
+from math import isfinite
 import os
 from pathlib import Path
 import yaml
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from src.scripting.engine import ScriptEngine
 
 router = APIRouter(prefix="/api")
@@ -12,6 +13,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
 
 class ConfigUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     protocol: str | None = None
     transport: str | None = None
     port: int | None = None
@@ -43,6 +46,31 @@ def get_state(request: Request):
     return request.app.state.state
 
 
+def validate_latency(mode: str, params: dict) -> None:
+    allowed = {
+        "none": (),
+        "fixed": ("delay_ms",),
+        "random": ("min_ms", "max_ms"),
+        "normal": ("mean_ms", "std_ms"),
+        "timeout": ("timeout_rate",),
+    }
+    if mode not in allowed:
+        raise HTTPException(400, f"Unsupported latency mode: {mode}")
+    for key, value in params.items():
+        if (
+            key not in allowed[mode]
+            or isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(value)
+            or value < 0
+        ):
+            raise HTTPException(400, f"Invalid latency parameter: {key}")
+    if mode == "random" and params.get("min_ms", 0) > params.get("max_ms", 0):
+        raise HTTPException(400, "Latency min_ms exceeds max_ms")
+    if mode == "timeout" and params.get("timeout_rate", 0) > 1:
+        raise HTTPException(400, "Latency timeout_rate must be at most 1")
+
+
 @router.get("/config")
 def get_config(request: Request):
     state = get_state(request)
@@ -52,16 +80,25 @@ def get_config(request: Request):
 @router.put("/config")
 async def put_config(request: Request, update: ConfigUpdate):
     state = get_state(request)
+    async with state.config_lock:
+        return await apply_config_update(state, update)
+
+
+async def apply_config_update(state, update: ConfigUpdate):
     from src.device.plc_models import PLC_MODELS
     from src.server.tcp_server import TcpServer
     from src.server.udp_server import UdpServer
+
+    if update.protocol is not None and update.protocol.upper() != "3E":
+        raise HTTPException(400, f"Unsupported protocol: {update.protocol}")
+    if update.data_format is not None and update.data_format.lower() != "binary":
+        raise HTTPException(400, f"Unsupported data format: {update.data_format}")
 
     # 1. Validate PLC model if provided
     if update.plc_model is not None:
         model = PLC_MODELS.get(update.plc_model)
         if not model:
             raise HTTPException(400, f"Unknown PLC model: {update.plc_model}")
-        state.device_manager.plc_model = model
 
     # 2. Validate port if provided (0 allows OS ephemeral port allocation, e.g. in tests)
     if update.port is not None and (update.port < 0 or update.port > 65535):
@@ -70,47 +107,58 @@ async def put_config(request: Request, update: ConfigUpdate):
     # 3. Validate transport if provided
     if update.transport is not None and update.transport.lower() not in ("tcp", "udp"):
         raise HTTPException(400, f"Invalid transport: {update.transport}")
+    changes = update.model_dump(exclude_none=True)
+    if update.latency_mode is not None or update.latency_params is not None:
+        mode = update.latency_mode or state.latency.mode
+        params = (
+            update.latency_params
+            if update.latency_params is not None
+            else ({} if update.latency_mode is not None else state.latency.params)
+        )
+        validate_latency(mode, params)
+        changes["latency_params"] = params
 
-    # 4. Check if running PLC server needs restart
+
+    # Bind the replacement before disturbing active clients. Unchanged settings
+    # must not disconnect them either.
     new_transport = (update.transport or state.config.transport).lower()
     new_port = update.port if update.port is not None else state.config.port
-
-    if state.plc_server is not None and (
-        update.port is not None or update.transport is not None
+    old_server = state.plc_server
+    if old_server is not None and (
+        new_transport != state.config.transport.lower()
+        or (new_port != state.config.port and new_port != old_server.port)
     ):
-        old_server = state.plc_server
-        if new_transport == "tcp":
-            new_server = TcpServer(
-                port=new_port,
-                device_manager=state.device_manager,
-                latency_emulator=state.latency,
-            )
-        else:
-            new_server = UdpServer(
-                port=new_port,
-                device_manager=state.device_manager,
-                latency_emulator=state.latency,
-            )
-
+        server_type = TcpServer if new_transport == "tcp" else UdpServer
+        new_server = server_type(
+            port=new_port,
+            host=old_server.host,
+            device_manager=state.device_manager,
+            latency_emulator=state.latency,
+            on_comm_log=old_server.on_comm_log,
+        )
+        try:
+            await new_server.start()
+        except Exception as e:
+            await new_server.stop()
+            raise HTTPException(400, f"Cannot switch communication server: {e}") from e
         try:
             await old_server.stop()
-            await new_server.start()
-            state.plc_server = new_server
-        except Exception as e:
-            try:
-                await old_server.start()
-            except Exception:
-                pass
-            raise HTTPException(400, f"Cannot switch communication server: {e}")
+        except Exception:
+            await new_server.stop()
+            raise
+        state.plc_server = new_server
+    if update.plc_model is not None:
+        state.device_manager.plc_model = model
 
-    # 5. Update latency if provided
-    if update.latency_mode is not None:
-        state.latency.mode = update.latency_mode
-    if update.latency_params is not None:
-        state.latency.params = update.latency_params
-
-    # 6. Save into state.config
-    for key, val in update.model_dump(exclude_none=True).items():
+    if "latency_mode" in changes:
+        state.latency.mode = changes["latency_mode"]
+    if "latency_params" in changes:
+        state.latency.params = changes["latency_params"]
+    for key, val in changes.items():
+        if key in ("transport", "data_format"):
+            val = val.lower()
+        elif key == "protocol":
+            val = val.upper()
         setattr(state.config, key, val)
 
     return state.config.to_dict()
@@ -137,10 +185,12 @@ def latency_stats(request: Request):
 
 
 @router.put("/latency/config")
-def latency_config(update: LatencyConfigUpdate, request: Request = None):
+async def latency_config(update: LatencyConfigUpdate, request: Request = None):
     state = get_state(request)
-    state.latency.mode = update.mode
-    state.latency.params = update.params
+    async with state.config_lock:
+        await apply_config_update(
+            state, ConfigUpdate(latency_mode=update.mode, latency_params=update.params)
+        )
     return {"status": "ok"}
 
 

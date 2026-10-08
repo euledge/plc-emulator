@@ -210,3 +210,256 @@ async def test_dynamic_latency_config():
             await writer.wait_closed()
 
     await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_unsupported_wire_formats_leave_live_3e_server_unchanged():
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            for change in (
+                {"protocol": "1E"},
+                {"protocol": "4E"},
+                {"protocol": "SLMP"},
+                {"data_format": "ASCII"},
+            ):
+                response = await client.put("/api/config", json=change)
+                assert response.status_code == 400
+
+            config = (await client.get("/api/config")).json()
+            assert (config["protocol"], config["data_format"]) == ("3E", "binary")
+
+        reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+        try:
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert response[:2] == b"\xD0\x00"
+            assert b"Q03UDE" in response
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_rejected_update_preserves_live_model_and_configuration():
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            response = await client.put(
+                "/api/config", json={"plc_model": "R04CPU", "port": 70000}
+            )
+            assert response.status_code == 400
+            assert (await client.get("/api/config")).json()["plc_model"] == "Q03UDE"
+
+        reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+        try:
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert b"Q03UDE" in response
+            writer.write(make_3e_write_req(DeviceCode3E.D, 20000, [1]))
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert struct.unpack_from("<H", response, 8)[0] != 0
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_transport_case_is_preserved_as_tcp_across_restart():
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            response = await client.put("/api/config", json={"transport": "TCP"})
+            assert response.status_code == 200
+            assert response.json()["transport"] == "tcp"
+
+        await app.stop_plc_server()
+        await app.start_plc_server()
+        reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+        try:
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert b"Q03UDE" in response
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_failed_port_switch_keeps_existing_client_connected():
+    import socket
+
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    occupied = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    occupied.bind(("0.0.0.0", 0))
+    occupied.listen()
+    reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            response = await client.put(
+                "/api/config", json={"port": occupied.getsockname()[1]}
+            )
+            assert response.status_code == 400
+            assert (await client.get("/api/config")).json()["port"] == 0
+
+        writer.write(make_3e_cpu_type_req())
+        await writer.drain()
+        response = await asyncio.wait_for(reader.read(1024), timeout=2)
+        assert b"Q03UDE" in response
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        occupied.close()
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_invalid_latency_update_preserves_response_delay():
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            response = await client.put(
+                "/api/config",
+                json={"latency_mode": "fixed", "latency_params": {"delay_ms": 30}},
+            )
+            assert response.status_code == 200
+            for change in (
+                {"latency_mode": "invalid"},
+                {"latency_params": {"delay_ms": -10}},
+            ):
+                response = await client.put("/api/config", json=change)
+                assert response.status_code == 400
+            config = (await client.get("/api/config")).json()
+            assert config["latency_mode"] == "fixed"
+            assert config["latency_params"] == {"delay_ms": 30}
+
+        reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+        try:
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert b"Q03UDE" in response
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+            ) as client:
+                stats = await client.get("/api/latency/stats")
+            assert stats.json()["min"] == 30
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_full_settings_save_keeps_client_and_applies_model_and_latency():
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            response = await client.put(
+                "/api/config",
+                json={
+                    "protocol": "3E",
+                    "transport": "tcp",
+                    "port": 0,
+                    "data_format": "binary",
+                    "plc_model": "R04CPU",
+                    "latency_mode": "fixed",
+                    "latency_params": {"delay_ms": 20},
+                },
+            )
+            assert response.status_code == 200
+            config = (await client.get("/api/config")).json()
+            assert config["latency_params"] == {"delay_ms": 20}
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert b"R04CPU" in response
+            stats = await client.get("/api/latency/stats")
+            assert stats.json()["min"] == 20
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_latency_endpoint_and_settings_report_the_same_live_behavior():
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start_plc_server()
+    reader, writer = await asyncio.open_connection("127.0.0.1", app.server.port)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            response = await client.put(
+                "/api/latency/config",
+                json={"mode": "timeout", "params": {"timeout_rate": 1}},
+            )
+            assert response.status_code == 200
+            config = (await client.get("/api/config")).json()
+            assert config["latency_mode"] == "timeout"
+            assert config["latency_params"] == {"timeout_rate": 1}
+
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(reader.read(1024), timeout=0.1)
+
+            response = await client.put(
+                "/api/latency/config", json={"mode": "none", "params": {}}
+            )
+            assert response.status_code == 200
+            writer.write(make_3e_cpu_type_req())
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert b"Q03UDE" in response
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        await app.stop_plc_server()

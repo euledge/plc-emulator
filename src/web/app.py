@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -24,6 +25,7 @@ class AppState:
         latency: LatencyEmulator | None = None,
     ) -> None:
         self.config = config or ConfigManager()
+        self.config_lock = asyncio.Lock()
         model = PLC_MODELS.get(self.config.plc_model)
         self.device_manager = device_manager or DeviceManager(plc_model=model)
         self.latency = latency or LatencyEmulator()
