@@ -45,9 +45,14 @@ class CommandProcessor:
             )
 
     def _batch_write(self, data: bytes) -> CommandResult:
+        if len(data) < 6:
+            return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+
         try:
             dev_type, dev_addr = parse_device_mc(data[:4])
             count = struct.unpack_from("<H", data, 4)[0]
+            if len(data) != 6 + count * 2:
+                return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
             values_data = data[6:6 + count * 2]
             values = [
                 struct.unpack_from("<H", values_data, i)[0]
