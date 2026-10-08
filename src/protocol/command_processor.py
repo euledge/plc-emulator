@@ -1,5 +1,5 @@
 import struct
-from src.protocol.base import CommandResult
+from src.protocol.base import CommandResult, ParsedRequest
 from src.protocol.device_parser import parse_device_mc
 from src.device.device_manager import DeviceManager
 from src.protocol.constants import ErrorCode
@@ -30,6 +30,53 @@ class CommandProcessor:
         else:
             return CommandResult(success=False, error_code=ErrorCode.UNSUPPORTED_COMMAND)
 
+    def execute_request(self, req: ParsedRequest) -> CommandResult:
+        if req.command == 0x0401:
+            if not req.devices:
+                return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+            dev = req.devices[0]
+            try:
+                values = self.device_manager.batch_read(dev["type"], dev["address"], dev["count"])
+                return CommandResult(
+                    success=True,
+                    data=struct.pack(f"<{len(values)}H", *values),
+                )
+            except (ValueError, IndexError):
+                return CommandResult(
+                    success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
+                )
+        elif req.command == 0x1401:
+            if not req.devices:
+                return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+            dev = req.devices[0]
+            count = dev["count"]
+            if len(req.data) != count * 2:
+                return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+            try:
+                values = [
+                    struct.unpack_from("<H", req.data, i)[0]
+                    for i in range(0, len(req.data), 2)
+                ]
+                self.device_manager.batch_write(dev["type"], dev["address"], values)
+                return CommandResult(success=True)
+            except (ValueError, IndexError):
+                return CommandResult(
+                    success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
+                )
+        elif req.command == 0x0101:
+            return self._cpu_type_read()
+        elif req.command == 0x0619:
+            return self._loopback(req.data)
+        elif req.command == 0x1001:
+            return self._remote_run()
+        elif req.command == 0x1002:
+            return self._remote_stop()
+        elif req.command == 0x0801:
+            return self._monitor_register(req.data)
+        elif req.command == 0x0802:
+            return self._monitor_execute()
+        else:
+            return CommandResult(success=False, error_code=ErrorCode.UNSUPPORTED_COMMAND)
     def _batch_read(self, data: bytes) -> CommandResult:
         try:
             dev_type, dev_addr = parse_device_mc(data[:4])

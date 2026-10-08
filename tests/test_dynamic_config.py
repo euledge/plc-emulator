@@ -223,9 +223,8 @@ async def test_unsupported_wire_formats_leave_live_3e_server_unchanged():
             transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
         ) as client:
             for change in (
-                {"protocol": "1E"},
-                {"protocol": "4E"},
-                {"protocol": "SLMP"},
+                {"protocol": "UNKNOWN"},
+                {"protocol": "9E"},
                 {"data_format": "ASCII"},
             ):
                 response = await client.put("/api/config", json=change)

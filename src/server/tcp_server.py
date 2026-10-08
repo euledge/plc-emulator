@@ -58,6 +58,8 @@ class TcpServer:
             logger.info("TCP server stopped")
 
     def _extract_frame(self, buf: bytearray) -> bytes | None:
+        if hasattr(self.protocol_handler, "extract_frame"):
+            return self.protocol_handler.extract_frame(buf)
         while len(buf) >= 2:
             if buf[:2] == b"\x50\x00":
                 if len(buf) < 8:
@@ -81,10 +83,9 @@ class TcpServer:
                 pass
 
         try:
+            if not self.protocol_handler.detect(frame):
+                raise ValueError("Frame does not match protocol")
             req = self.protocol_handler.parse_request(frame)
-            data_len = struct.unpack_from("<H", frame, 6)[0]
-            cmd_data = frame[10:8 + data_len]
-            payload = cmd_data[4:] if len(cmd_data) >= 4 else b""
             if (
                 req.command == 0x0401
                 and req.devices
@@ -92,12 +93,11 @@ class TcpServer:
             ):
                 result = CommandResult(success=False, error_code=ErrorCode.PARAMETER_ERROR)
             else:
-                result = self.command_processor.execute(req.command, req.subcommand, payload)
+                result = self.command_processor.execute_request(req)
         except Exception as e:
             logger.warning("Error parsing/processing frame: %s", e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)
-            req = ParsedRequest(access_path=frame[2:6])
-
+            req = ParsedRequest(access_path=frame[2:6] if len(frame) >= 6 else b"\x00\x00\x00\x00")
         resp = self.protocol_handler.build_response(req, result)
 
         delay = await self.latency_emulator.apply_delay()

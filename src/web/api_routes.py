@@ -88,8 +88,9 @@ async def apply_config_update(state, update: ConfigUpdate):
     from src.device.plc_models import PLC_MODELS
     from src.server.tcp_server import TcpServer
     from src.server.udp_server import UdpServer
+    from src.protocol import create_protocol_handler
 
-    if update.protocol is not None and update.protocol.upper() != "3E":
+    if update.protocol is not None and update.protocol.upper() not in ("1E", "3E", "4E", "SLMP"):
         raise HTTPException(400, f"Unsupported protocol: {update.protocol}")
     if update.data_format is not None and update.data_format.lower() != "binary":
         raise HTTPException(400, f"Unsupported data format: {update.data_format}")
@@ -121,6 +122,8 @@ async def apply_config_update(state, update: ConfigUpdate):
 
     # Bind the replacement before disturbing active clients. Unchanged settings
     # must not disconnect them either.
+    new_protocol = (update.protocol or state.config.protocol).upper()
+    protocol_changed = new_protocol != state.config.protocol.upper()
     new_transport = (update.transport or state.config.transport).lower()
     new_port = update.port if update.port is not None else state.config.port
     old_server = state.plc_server
@@ -134,6 +137,7 @@ async def apply_config_update(state, update: ConfigUpdate):
             host=old_server.host,
             device_manager=state.device_manager,
             latency_emulator=state.latency,
+            protocol_handler=create_protocol_handler(new_protocol),
             on_comm_log=old_server.on_comm_log,
         )
         try:
@@ -147,6 +151,13 @@ async def apply_config_update(state, update: ConfigUpdate):
             await new_server.stop()
             raise
         state.plc_server = new_server
+    elif old_server is not None and protocol_changed:
+        old_server.protocol_handler = create_protocol_handler(new_protocol)
+        if hasattr(old_server, "_active_writer") and old_server._active_writer:
+            try:
+                old_server._active_writer.close()
+            except Exception:
+                pass
     if update.plc_model is not None:
         state.device_manager.plc_model = model
 

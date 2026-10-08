@@ -17,10 +17,13 @@ class SlmpHandler(McFrame3E):
         return subcommand in SLMP_SUBCOMMANDS
 
     def parse_request(self, data: bytes) -> ParsedRequest:
-        if len(data) < 12:
+        if len(data) < 14:
             raise ValueError("Frame too short for SLMP")
         req = ParsedRequest()
+        req.access_path = data[2:6]
         data_len = struct.unpack_from("<H", data, 6)[0]
+        if len(data) != 8 + data_len:
+            raise ValueError("Data length mismatch for SLMP")
         cmd_data = data[10:10 + data_len - 2]
         req.command = struct.unpack_from("<H", cmd_data, 0)[0]
         req.subcommand = struct.unpack_from("<H", cmd_data, 2)[0]

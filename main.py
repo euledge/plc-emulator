@@ -11,6 +11,7 @@ from src.server.latency import LatencyEmulator
 from src.server.tcp_server import TcpServer
 from src.server.udp_server import UdpServer
 from src.web.app import AppState, create_app
+from src.protocol import create_protocol_handler
 
 if TYPE_CHECKING:
     pass
@@ -70,17 +71,20 @@ class PLCEmulatorApp:
         return self.web_port
 
     async def start_plc_server(self) -> None:
+        handler = create_protocol_handler(self.config.protocol)
         if self.config.transport == "tcp":
             self.state.plc_server = TcpServer(
                 port=self.config.port,
                 device_manager=self.device_manager,
                 latency_emulator=self.latency,
+                protocol_handler=handler,
             )
         else:
             self.state.plc_server = UdpServer(
                 port=self.config.port,
                 device_manager=self.device_manager,
                 latency_emulator=self.latency,
+                protocol_handler=handler,
             )
         await self.state.plc_server.start()
 

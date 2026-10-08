@@ -23,8 +23,8 @@
 - [x] ユニットテスト: `test_command_processor.py`
 
 ## Phase 3: 1E / 4E / SLMP + ASCII
-- [x] `src/protocol/mc_frame_1e.py` 1Eフレーム（ハンドラー実装済み、サーバ未統合）
-- [x] `src/protocol/mc_frame_4e.py` 4Eフレーム（ハンドラー実装済み、サーバ未統合）
+- [x] `src/protocol/mc_frame_1e.py` 1Eフレーム（TCP/UDP送受信・実通信対応）
+- [x] `src/protocol/mc_frame_4e.py` 4Eフレーム（TCP/UDP送受信・実通信対応）
 - [x] `src/protocol/slmp_handler.py` SLMP拡張デバイス指定
 - [ ] 3Eフレーム ASCIIモード対応
 - [x] モニタ登録/実行コマンド

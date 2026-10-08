@@ -89,10 +89,12 @@ def test_settings_save_changes(page, server_url, api):
     page.wait_for_timeout(1000)
     page.locator("#protocol").select_option("4E")
     page.locator("#save_config").click()
+    page.wait_for_function("document.getElementById('server_status').textContent === 'Saved'", timeout=5000)
     resp = api.get("/api/config")
     assert resp.json()["protocol"] == "4E"
     page.locator("#protocol").select_option("3E")
     page.locator("#save_config").click()
+    page.wait_for_function("document.getElementById('server_status').textContent === 'Saved'", timeout=5000)
 
 
 def test_device_monitor_add_device(page, server_url):

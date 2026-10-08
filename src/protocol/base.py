@@ -10,6 +10,7 @@ class ParsedRequest:
     data: bytes = b""
     access_path: bytes = b"\x00\x00\x00\x00"
     devices: list[dict[str, Any]] = field(default_factory=list)
+    serial: bytes = b"\x00\x00"
 
 
 @dataclass
@@ -25,9 +26,13 @@ class ProtocolHandler(ABC):
         ...
 
     @abstractmethod
-    def build_response(self, parsed: ParsedRequest, result: CommandResult) -> bytes:
+    def build_response(self, parsed: ParsedRequest | None, result: CommandResult) -> bytes:
         ...
 
     @abstractmethod
     def detect(self, data: bytes) -> bool:
         ...
+
+    def extract_frame(self, buf: bytearray) -> bytes | None:
+        """Extract a complete frame from buffer, removing consumed bytes."""
+        return None
