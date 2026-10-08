@@ -238,3 +238,65 @@ async def test_start_rollback_on_web_failure(monkeypatch):
     # PLC server must be safely cleaned up
     assert app.server is None
 
+
+def test_default_web_binding_is_localhost():
+    """Verify default web host binding is 127.0.0.1 for security."""
+    app = PLCEmulatorApp()
+    assert app.web_host == "127.0.0.1"
+
+
+@pytest.mark.asyncio
+async def test_web_port_conflict_clean_rollback_without_system_exit():
+    """Verify that a port conflict raises OSError directly without SystemExit, and rolls back PLC server."""
+    import socket
+
+    # Occupy a port
+    dummy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    dummy.bind(("127.0.0.1", 0))
+    occupied_port = dummy.getsockname()[1]
+
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=occupied_port, web_host="127.0.0.1")
+
+    try:
+        with pytest.raises(OSError):
+            await app.start()
+        # PLC server must have been cleaned up and rolled back
+        assert app.server is None
+    finally:
+        dummy.close()
+
+
+@pytest.mark.asyncio
+async def test_unexpected_web_exit_stops_plc_server():
+    """Verify that an unexpected termination of the Web server triggers stopping the PLC listener."""
+    cfg = ConfigManager()
+    cfg.port = 0
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
+    await app.start()
+
+    assert app.server is not None
+    plc_port = app.actual_plc_port
+
+    # Verify PLC port is responding
+    reader, writer = await asyncio.open_connection("127.0.0.1", plc_port)
+    writer.close()
+    await writer.wait_closed()
+
+    # Trigger unexpected exit of Web server
+    assert app._uvicorn_server is not None
+    app._uvicorn_server.should_exit = True
+
+    # Wait for lifecycle monitor to detect exit and shut down
+    await asyncio.wait_for(app.wait_until_stopped(), timeout=3.0)
+
+    # Allow background stop task to complete
+    for _ in range(50):
+        if app.server is None:
+            break
+        await asyncio.sleep(0.05)
+
+    assert app.server is None, "PLC server must be stopped after unexpected Web server exit"
+
+

@@ -32,13 +32,14 @@ PLC communication emulator supporting MC protocol / SLMP
 # Install dependencies
 uv sync
 
-# Run unit & integration tests (99 tests)
+# Run unit & integration tests
 uv run pytest
 
-# Start server (http://localhost:8000)
-uv run uvicorn src.web.app:create_app --factory --reload
+# Start PLC emulator & Web UI (combined entry point with shared state)
+# Default binds Web UI to http://127.0.0.1:8000 and PLC server to port 5000
+uv run python main.py
 
-# E2E tests (16 tests, requires browser install on first run)
+# E2E tests (requires browser install on first run)
 uv run playwright install chromium
 uv run pytest tests/test_e2e.py
 # Note: Add --headed to see the browser window
