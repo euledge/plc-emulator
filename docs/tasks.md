@@ -10,7 +10,7 @@
 - [x] `src/device/plc_models.py` PLC機種プロファイル
 - [x] `src/device/device_manager.py` デバイスメモリ管理
 - [x] `src/server/tcp_server.py` TCPサーバ（3Eバイナリ送受信・再接続・遅延適用に対応）
-- [ ] `src/server/udp_server.py` UDPサーバ（ソケット起動のみ実装、電文送受信未対応）
+- [x] `src/server/udp_server.py` UDPサーバ（3Eバイナリ送受信・不正電文拒否に対応）
 - [x] `src/server/latency.py` レイテンシエミュレータ
 
 ## Phase 2: MCプロトコル 3Eフレーム
@@ -57,6 +57,6 @@
 ## Phase 6: 仕上げ
 - [x] デバイス値永続化（JSON保存/読込）
 - [ ] エラー応答切替機能
-- [ ] 全体統合テスト（TCP 3E読書・再接続・遅延およびWeb E2Eは検証済み。UDPやASCIIの統合は未完）
+- [x] 全体統合テスト（TCP/UDP 3E読書・共有同時起動・動的設定反映・Web E2E検証済み）
 - [x] `README.md` 作成
 - [ ] `docs/script_dsl_reference.md` DSLリファレンス
