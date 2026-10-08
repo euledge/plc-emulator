@@ -9,10 +9,13 @@ class McFrame4E(McFrame3E):
     def parse_request(self, data: bytes) -> ParsedRequest:
         req = super().parse_request(data)
         if len(data) >= 12:
-            req.data = data[:-2]
+            req.serial = data[-2:]
+            if req.command != 0x1401:
+                req.data = data[:-2]
         return req
 
     def build_response(self, parsed: ParsedRequest | None, result: CommandResult) -> bytes:
         resp = super().build_response(parsed, result)
-        resp += b"\x00\x00"
+        serial = getattr(parsed, "serial", b"\x00\x00") if parsed is not None else b"\x00\x00"
+        resp += serial
         return resp

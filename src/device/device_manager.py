@@ -9,6 +9,14 @@ class DeviceManager:
         self._plc_model = plc_model
         self._callbacks: list[callable] = []
 
+    @property
+    def plc_model(self) -> PlcModel | None:
+        return self._plc_model
+
+    @plc_model.setter
+    def plc_model(self, model: PlcModel | None) -> None:
+        self._plc_model = model
+
     def on_change(self, callback: callable) -> None:
         self._callbacks.append(callback)
 

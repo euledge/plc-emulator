@@ -11,6 +11,21 @@ class McFrame3E(ProtocolHandler):
     def detect(self, data: bytes) -> bool:
         return len(data) >= 2 and data[:2] == self.SUBHEADER_REQUEST
 
+    def extract_frame(self, buf: bytearray) -> bytes | None:
+        while len(buf) >= 2:
+            if buf[:2] == self.SUBHEADER_REQUEST:
+                if len(buf) < 8:
+                    return None
+                data_len = struct.unpack_from("<H", buf, 6)[0]
+                total_len = 8 + data_len
+                if len(buf) < total_len:
+                    return None
+                frame = bytes(buf[:total_len])
+                del buf[:total_len]
+                return frame
+            else:
+                del buf[0:1]
+        return None
     def parse_request(self, data: bytes) -> ParsedRequest:
         if len(data) < 10:
             raise ValueError("Frame too short for 3E")

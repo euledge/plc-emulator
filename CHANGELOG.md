@@ -2,6 +2,15 @@
 
 All notable changes to PLCEmulator, tracked by release date.
 
+## Unreleased
+
+### Fixed
+
+- Unexpected Web server exit now completes PLC shutdown before signaling stopped, without duplicate cleanup (#3).
+- Web settings now persist the selected PLC model and latency, report save errors, and apply TCP/UDP or port changes without dropping clients when a switch fails (#4).
+- Unsupported protocol and data-format selections return an error instead of reporting a successful switch; only MC 3E binary is currently available (#4).
+- Configuration updates validate all fields before changing live state and normalize transport values so TCP remains TCP after restart (#4).
+
 ## June 20, 2026 — v0.1.0
 
 ### ✨ New

@@ -13,10 +13,10 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
 
 ## 機能
 
-- **MC プロトコル** 3E/1E/4E フレーム + **SLMP** 対応
+- **MC プロトコル** 3E バイナリフレーム
 - **TCP / UDP** サーバ
 - **デバイスメモリ** 読み書き (ビット・ワード・バッチ)
-- **PLC機種** 定義 (Q/L/FX) + 範囲チェック
+- **PLC機種** 6機種 (Q03UDE / Q06UDE / R04CPU / R08CPU / FX5U / L06CPU) と範囲チェック
 - **遅延エミュレーション** (なし/固定/ランダム/正規分布/タイムアウト)
 - **スクリプティング** (YAML DSL + AST安全評価)
   - 定期書込 / ランプ / 条件分岐 / シーケンス
@@ -24,7 +24,7 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
   - 設定パネル / デバイスモニタ / 通信ログ / スクリプトエディタ
   - WebSocket リアルタイム更新 / i18n (日本語・英語)
 - **状態保存** JSON ファイルへの save/load
-- **全テスト 115件** (単体・統合 99 + E2E 16)
+- **単体・統合・ブラウザテスト**
 
 ## クイックスタート
 
@@ -32,13 +32,14 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
 # 依存関係のインストール
 uv sync
 
-# 単体・統合テスト実行 (99件)
+# 単体・統合テスト実行
 uv run pytest
 
-# サーバ起動 (http://localhost:8000)
-uv run uvicorn src.web.app:create_app --factory --reload
+# PLCエミュレータ & Web UI 起動 (共有メモリ・同時起動エントリポイント)
+# デフォルトで Web UI: http://127.0.0.1:8000, PLCサーバ: ポート 5000 にバインド
+uv run python main.py
 
-# E2Eテスト (16件, 初回のみブラウザインストールが必要)
+# E2Eテスト (初回のみブラウザインストールが必要)
 uv run playwright install chromium
 uv run pytest tests/test_e2e.py
 # ※ ブラウザを表示して動作確認する場合は --headed を付与
@@ -112,6 +113,8 @@ OpenAPI 3.1 仕様書: [`docs/openapi.json`](docs/openapi.json)
 | POST | `/api/load` | 状態読込 |
 | GET | `/api/i18n/{lang}` | 翻訳データ |
 | WS | `/ws` | WebSocket |
+
+`PUT /api/config` は `protocol: "3E"`、`data_format: "binary"`、`transport: "tcp" | "udp"`、`port: 0..65535`、`plc_model`、`latency_mode` / `latency_params` に対応します。未対応の通信形式は稼働中のサーバを変更せずにエラーを返します。固定遅延の例: `{"latency_mode":"fixed","latency_params":{"delay_ms":100}}`。
 
 ## スクリプト例
 

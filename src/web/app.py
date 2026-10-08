@@ -1,4 +1,6 @@
+import asyncio
 from pathlib import Path
+from typing import TYPE_CHECKING
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,20 +12,32 @@ from src.server.latency import LatencyEmulator
 from src.web.api_routes import router
 from src.web.websocket_handler import WebSocketManager
 
+if TYPE_CHECKING:
+    from src.server.tcp_server import TcpServer
+    from src.server.udp_server import UdpServer
+
 
 class AppState:
-    def __init__(self) -> None:
-        self.config = ConfigManager()
+    def __init__(
+        self,
+        config: ConfigManager | None = None,
+        device_manager: DeviceManager | None = None,
+        latency: LatencyEmulator | None = None,
+    ) -> None:
+        self.config = config or ConfigManager()
+        self.config_lock = asyncio.Lock()
         model = PLC_MODELS.get(self.config.plc_model)
-        self.device_manager = DeviceManager(plc_model=model)
-        self.latency = LatencyEmulator()
+        self.device_manager = device_manager or DeviceManager(plc_model=model)
+        self.latency = latency or LatencyEmulator()
         self.ws_manager = WebSocketManager()
         self.persistence = PersistenceManager(self.device_manager)
+        self.plc_server: TcpServer | UdpServer | None = None
 
 
-def create_app() -> FastAPI:
+def create_app(state: AppState | None = None) -> FastAPI:
     app = FastAPI(title="PLCEmulator")
-    state = AppState()
+    if state is None:
+        state = AppState()
     app.state.state = state
     app.include_router(router)
 

@@ -13,10 +13,10 @@ PLC communication emulator supporting MC protocol / SLMP
 
 ## Features
 
-- **MC Protocol** 3E/1E/4E frames + **SLMP**
+- **MC Protocol** 3E binary frames
 - **TCP / UDP** servers
 - **Device memory** read/write (bit, word, batch)
-- **PLC models** (Q/L/FX) with range checking
+- **PLC models** (Q03UDE, Q06UDE, R04CPU, R08CPU, FX5U, L06CPU) with range checking
 - **Latency emulation** (none/fixed/random/normal/timeout)
 - **Scripting** (YAML DSL + AST-safe evaluation)
   - Periodic write / Ramp / Conditional / Sequence
@@ -24,7 +24,7 @@ PLC communication emulator supporting MC protocol / SLMP
   - Settings panel / Device monitor / Comm log / Script editor
   - WebSocket real-time push / i18n (English, Japanese)
 - **State persistence** JSON save/load
-- **115 tests** (99 unit/integration + 16 E2E)
+- **Unit, integration, and browser tests**
 
 ## Quick Start
 
@@ -32,13 +32,14 @@ PLC communication emulator supporting MC protocol / SLMP
 # Install dependencies
 uv sync
 
-# Run unit & integration tests (99 tests)
+# Run unit & integration tests
 uv run pytest
 
-# Start server (http://localhost:8000)
-uv run uvicorn src.web.app:create_app --factory --reload
+# Start PLC emulator & Web UI (combined entry point with shared state)
+# Default binds Web UI to http://127.0.0.1:8000 and PLC server to port 5000
+uv run python main.py
 
-# E2E tests (16 tests, requires browser install on first run)
+# E2E tests (requires browser install on first run)
 uv run playwright install chromium
 uv run pytest tests/test_e2e.py
 # Note: Add --headed to see the browser window
@@ -112,6 +113,8 @@ Full OpenAPI 3.1 specification: [`docs/openapi.json`](docs/openapi.json)
 | POST | `/api/load` | Load device state |
 | GET | `/api/i18n/{lang}` | Translation data |
 | WS | `/ws` | WebSocket |
+
+`PUT /api/config` accepts `protocol: "3E"`, `data_format: "binary"`, `transport: "tcp" | "udp"`, `port: 0..65535`, `plc_model`, and `latency_mode` / `latency_params`. Unsupported wire formats return an error without changing the running server. For example, fixed latency uses `{"latency_mode":"fixed","latency_params":{"delay_ms":100}}`.
 
 ## Sample Scripts
 
