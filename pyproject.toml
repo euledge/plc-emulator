@@ -46,4 +46,3 @@ filterwarnings = [
     "ignore:websockets.server.WebSocketServerProtocol is deprecated:DeprecationWarning",
     "ignore:.*Using `httpx` with `starlette.testclient`.*:Warning",
 ]
-

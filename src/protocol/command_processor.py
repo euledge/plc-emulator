@@ -66,7 +66,11 @@ class CommandProcessor:
             )
 
     def _cpu_type_read(self) -> CommandResult:
-        cpu_name = "Q03UDE              "
+        if self.device_manager.plc_model:
+            name = self.device_manager.plc_model.cpu_type_string
+        else:
+            name = "Q03UDE"
+        cpu_name = f"{name:<20}"
         return CommandResult(success=True, data=cpu_name.encode("ascii"))
 
     def _loopback(self, data: bytes) -> CommandResult:

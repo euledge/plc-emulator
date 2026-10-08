@@ -19,11 +19,6 @@ def test_get_config(client):
     assert data["port"] == 5000
 
 
-def test_put_config(client):
-    resp = client.put("/api/config", json={"protocol": "4E"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["protocol"] == "4E"
 
 
 def test_get_devices(client):

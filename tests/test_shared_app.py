@@ -296,4 +296,3 @@ async def test_unexpected_web_exit_stops_plc_server():
         await asyncio.open_connection("127.0.0.1", plc_port)
     await app.stop()
 
-
