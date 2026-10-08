@@ -3,7 +3,7 @@ import logging
 import struct
 from typing import Callable
 from src.device.device_manager import DeviceManager
-from src.protocol.base import ProtocolHandler, CommandResult
+from src.protocol.base import ProtocolHandler, CommandResult, ParsedRequest
 from src.protocol.mc_frame_3e import McFrame3E
 from src.protocol.command_processor import CommandProcessor
 from src.protocol.constants import ErrorCode
@@ -85,11 +85,18 @@ class TcpServer:
             data_len = struct.unpack_from("<H", frame, 6)[0]
             cmd_data = frame[10:8 + data_len]
             payload = cmd_data[4:] if len(cmd_data) >= 4 else b""
-            result = self.command_processor.execute(req.command, req.subcommand, payload)
+            if (
+                req.command == 0x0401
+                and req.devices
+                and req.devices[0]["count"] > (0xFFFF - 2) // 2
+            ):
+                result = CommandResult(success=False, error_code=ErrorCode.PARAMETER_ERROR)
+            else:
+                result = self.command_processor.execute(req.command, req.subcommand, payload)
         except Exception as e:
             logger.warning("Error parsing/processing frame: %s", e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)
-            req = None
+            req = ParsedRequest(access_path=frame[2:6])
 
         resp = self.protocol_handler.build_response(req, result)
 
@@ -113,12 +120,10 @@ class TcpServer:
         logger.info("Client connected: %s", peername)
 
         if self._active_writer is not None:
-            logger.warning("Another client connected, closing previous connection")
-            try:
-                self._active_writer.close()
-                await self._active_writer.wait_closed()
-            except Exception:
-                pass
+            logger.warning("Another client connected, rejecting new connection")
+            writer.close()
+            await writer.wait_closed()
+            return
 
         self._active_writer = writer
         buf = bytearray()
