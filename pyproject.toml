@@ -37,3 +37,7 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-playwright>=0.8.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--ignore=tests/test_e2e.py"

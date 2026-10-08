@@ -3,10 +3,11 @@
 [![CI](https://github.com/euledge/plc-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/euledge/plc-emulator/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
 MCプロトコル / SLMP対応のPLC通信エミュレータ
 
-[**English version**](README.md)
+[**English version**](README.md) | [**リリースノート (v0.1.0)**](RELEASE_NOTES_v0.1.0.ja.md)
 
 > **GitHub トピック候補**: `plc`, `mc-protocol`, `slmp`, `mitsubishi`, `emulator`, `fastapi`, `plc-simulator`, `python`, `scada`, `industrial-automation`
 
@@ -23,22 +24,25 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
   - 設定パネル / デバイスモニタ / 通信ログ / スクリプトエディタ
   - WebSocket リアルタイム更新 / i18n (日本語・英語)
 - **状態保存** JSON ファイルへの save/load
-- **全テスト 113件** (ユニット90 + Web API 7 + 永続化 5 + E2E 16)
+- **全テスト 113件** (単体・統合 97 + E2E 16)
 
 ## クイックスタート
 
 ```bash
-# インストール
+# 依存関係のインストール
 uv sync
 
-# 全テスト実行
+# 単体・統合テスト実行 (97件)
 uv run pytest
 
 # サーバ起動 (http://localhost:8000)
 uv run uvicorn src.web.app:create_app --factory --reload
 
-# E2Eテスト (別ターミナルでサーバ停止中に)
-uv run pytest tests/test_e2e.py --headed
+# E2Eテスト (16件, 初回のみブラウザインストールが必要)
+uv run playwright install chromium
+uv run pytest tests/test_e2e.py
+# ※ ブラウザを表示して動作確認する場合は --headed を付与
+# uv run pytest tests/test_e2e.py --headed
 ```
 
 ## プロジェクト構成
@@ -46,11 +50,11 @@ uv run pytest tests/test_e2e.py --headed
 ```
 src/
   config.py              # 設定管理
-  constants.py           # 定数定義
   device/
     device_manager.py    # デバイスメモリ管理
     plc_models.py        # PLC機種定義
   protocol/
+    constants.py         # 定数定義 (フレーム・コマンドID等)
     base.py              # プロトコル基底クラス
     device_parser.py     # デバイス番号解析
     mc_frame_3e.py       # MC 3Eフレーム

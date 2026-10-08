@@ -7,7 +7,7 @@
 
 PLC communication emulator supporting MC protocol / SLMP
 
-[**日本語版はこちら**](README.ja.md)
+[**日本語版はこちら**](README.ja.md) | [**Release Notes (v0.1.0)**](RELEASE_NOTES_v0.1.0.md)
 
 > **GitHub topics 候補**: `plc`, `mc-protocol`, `slmp`, `mitsubishi`, `emulator`, `fastapi`, `plc-simulator`, `python`, `scada`, `industrial-automation`
 
@@ -24,22 +24,25 @@ PLC communication emulator supporting MC protocol / SLMP
   - Settings panel / Device monitor / Comm log / Script editor
   - WebSocket real-time push / i18n (English, Japanese)
 - **State persistence** JSON save/load
-- **113 tests** (90 unit + 7 Web API + 5 persistence + 16 E2E)
+- **113 tests** (97 unit/integration + 16 E2E)
 
 ## Quick Start
 
 ```bash
-# Install
+# Install dependencies
 uv sync
 
-# Run all tests
-uv run pytest --ignore=tests/test_e2e.py
+# Run unit & integration tests (97 tests)
+uv run pytest
 
 # Start server (http://localhost:8000)
 uv run uvicorn src.web.app:create_app --factory --reload
 
-# E2E tests (in another terminal, with server stopped)
-uv run pytest tests/test_e2e.py --headed
+# E2E tests (16 tests, requires browser install on first run)
+uv run playwright install chromium
+uv run pytest tests/test_e2e.py
+# Note: Add --headed to see the browser window
+# uv run pytest tests/test_e2e.py --headed
 ```
 
 ## Project Structure
@@ -47,11 +50,11 @@ uv run pytest tests/test_e2e.py --headed
 ```
 src/
   config.py              # Configuration management
-  constants.py           # Constants
   device/
     device_manager.py    # Device memory manager
     plc_models.py        # PLC model definitions
   protocol/
+    constants.py         # Constants (frame and command IDs)
     base.py              # Protocol base class
     device_parser.py     # Device number parser
     mc_frame_3e.py       # MC 3E frame

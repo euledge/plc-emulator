@@ -22,7 +22,12 @@ Thumbs.db
 # Project runtime
 saves/
 *.json
+!docs/*.json
 
 # Test artifacts
 .pytest_cache/
 tests/__pycache__/
+
+# Tool artifacts
+.codegraph/
+.serena/
