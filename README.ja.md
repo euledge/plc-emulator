@@ -32,13 +32,14 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
 # 依存関係のインストール
 uv sync
 
-# 単体・統合テスト実行 (99件)
+# 単体・統合テスト実行
 uv run pytest
 
-# サーバ起動 (http://localhost:8000)
-uv run uvicorn src.web.app:create_app --factory --reload
+# PLCエミュレータ & Web UI 起動 (共有メモリ・同時起動エントリポイント)
+# デフォルトで Web UI: http://127.0.0.1:8000, PLCサーバ: ポート 5000 にバインド
+uv run python main.py
 
-# E2Eテスト (16件, 初回のみブラウザインストールが必要)
+# E2Eテスト (初回のみブラウザインストールが必要)
 uv run playwright install chromium
 uv run pytest tests/test_e2e.py
 # ※ ブラウザを表示して動作確認する場合は --headed を付与
