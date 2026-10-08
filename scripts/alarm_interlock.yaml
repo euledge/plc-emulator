@@ -1,0 +1,48 @@
+# 温度監視警報および安全インターロックの模擬
+#
+# - D100: 監視対象温度
+# - M100: 高温警報ビット
+# - Y20:  冷却ファン出力
+# - X0:   非常停止ボタン（1=押下）
+# - Y0:   主軸モータ運転出力
+# - D50:  システムエラーコード（0=正常, 101=高温異常, 999=非常停止）
+- type: conditional
+  interval_ms: 200
+  conditions:
+    # 高温警報（75℃以上で警報ON・ファン起動）
+    - when: "D100 >= 75"
+      actions:
+        - target: M100
+          value: 1
+        - target: Y20
+          value: 1
+
+    # 警報復帰（65℃未満でヒステリシス復帰）
+    - when: "D100 < 65"
+      actions:
+        - target: M100
+          value: 0
+        - target: Y20
+          value: 0
+
+    # 非常停止インターロック
+    - when: "X0 == 1"
+      actions:
+        - target: Y0
+          value: 0
+        - target: D50
+          value: 999
+
+    # 高温インターロック（非常停止でない場合）
+    - when: "X0 == 0 and M100 == 1"
+      actions:
+        - target: Y0
+          value: 0
+        - target: D50
+          value: 101
+
+    # 正常復帰
+    - when: "X0 == 0 and M100 == 0"
+      actions:
+        - target: D50
+          value: 0

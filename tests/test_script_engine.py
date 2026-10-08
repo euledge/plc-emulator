@@ -53,3 +53,54 @@ async def test_ramp_script(engine):
     await engine.stop()
     val = engine.device_manager.read_word("D", 100)
     assert 0 < val <= 100
+
+
+@pytest.mark.asyncio
+async def test_sequence_script(engine):
+    script = {
+        "name": "test_seq",
+        "type": "sequence",
+        "loop": False,
+        "steps": [
+            {
+                "wait_ms": 20,
+                "actions": [
+                    {"target": "D10", "value": 1},
+                    {"target": "M10", "value": 1},
+                ],
+            },
+            {
+                "wait_ms": 20,
+                "actions": [
+                    {"target": "D10", "value": 2},
+                    {"target": "M10", "value": 0},
+                ],
+            },
+        ],
+    }
+    engine.load_scripts([script])
+    await engine.start()
+    await asyncio.sleep(0.06)
+    await engine.stop()
+    assert engine.device_manager.read_word("D", 10) == 2
+    assert engine.device_manager.read_bit("M", 10) is False
+
+
+@pytest.mark.asyncio
+async def test_all_example_scripts_load_and_run(engine):
+    import yaml
+    from pathlib import Path
+
+    examples_dir = Path(__file__).resolve().parent.parent / "scripts" / "examples"
+    yaml_files = list(examples_dir.glob("*.yaml"))
+    assert len(yaml_files) >= 5
+    for yf in yaml_files:
+        content = yf.read_text(encoding="utf-8")
+        data = yaml.safe_load(content)
+        if isinstance(data, dict):
+            data = [data]
+        eng = ScriptEngine(device_manager=DeviceManager())
+        eng.load_scripts(data)
+        await eng.start()
+        await asyncio.sleep(0.02)
+        await eng.stop()

@@ -1,0 +1,6 @@
+# 定期的にD100に値を書き込むサンプル
+- type: periodic
+  interval_ms: 1000
+  actions:
+    - target: D100
+      expr: "t % 1000"

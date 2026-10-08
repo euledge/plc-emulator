@@ -24,7 +24,7 @@ PLC communication emulator supporting MC protocol / SLMP
   - Settings panel / Device monitor / Comm log / Script editor
   - WebSocket real-time push / i18n (English, Japanese)
 - **State persistence** JSON save/load
-- **113 tests** (97 unit/integration + 16 E2E)
+- **115 tests** (99 unit/integration + 16 E2E)
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ PLC communication emulator supporting MC protocol / SLMP
 # Install dependencies
 uv sync
 
-# Run unit & integration tests (97 tests)
+# Run unit & integration tests (99 tests)
 uv run pytest
 
 # Start server (http://localhost:8000)
@@ -115,15 +115,31 @@ Full OpenAPI 3.1 specification: [`docs/openapi.json`](docs/openapi.json)
 
 ## Sample Scripts
 
+Practical simulation samples are available in `scripts/examples/` and can also be executed directly from the Web UI's "Scripts" panel.
+
+| Sample File | Type | Description |
+|---|---|---|
+| `heartbeat.yaml` | `periodic` | Comm health check (toggles M0, increments D0 watchdog counter) |
+| `sawtooth.yaml` | `periodic` | Sawtooth wave generator into D100 |
+| `sensor_simulation.yaml` | `periodic` | Analog sensor simulation (temperature, pressure, flow rate with noise) |
+| `ramp_loop.yaml` | `ramp` | Continuous sweep of D200 from 0→1000 over 10s (looped) |
+| `conditional.yaml` | `conditional` | Threshold-based M0 ON/OFF toggle based on D100 |
+| `alarm_interlock.yaml` | `conditional` | High-temperature alarm (with hysteresis) & emergency stop interlock |
+| `cylinder_sequence.yaml` | `sequence` | Multi-step machine sequence: clamp → process → unclamp/eject → reset |
+| `tank_level_control.yaml` | Combined (`periodic` + `conditional`) | Tank level physics simulation with automated pump/drain control |
+| `traffic_light.yaml` | `sequence` | Traffic light sequence: Green → Yellow → Red |
+
+### Syntax Examples
+
 ```yaml
-# Periodic write (sawtooth into D100)
+# 1. Periodic: Analog temperature sensor simulation with noise
 - type: periodic
-  interval_ms: 1000
+  interval_ms: 500
   actions:
     - target: D100
-      expr: "t % 1000"
+      expr: "int(clamp(50 + 25 * sin(t * 0.2) + randint(-1, 1), 0, 100))"
 
-# Ramp (D200 from 0→1000 in 10s, looped)
+# 2. Ramp: Sweep D200 from 0 to 1000 over 10 seconds
 - type: ramp
   target: D200
   start_value: 0
@@ -131,17 +147,42 @@ Full OpenAPI 3.1 specification: [`docs/openapi.json`](docs/openapi.json)
   duration_ms: 10000
   loop: true
 
-# Conditional (M0 ON when D100 > 500)
+# 3. Conditional: High-temp alarm (ON at >=75C, OFF at <65C)
 - type: conditional
   interval_ms: 200
   conditions:
-    - when: "D100 > 500"
+    - when: "D100 >= 75"
       actions:
-        - target: M0
+        - target: M100
           value: 1
-    - when: "D100 <= 500"
+    - when: "D100 < 65"
       actions:
-        - target: M0
+        - target: M100
+          value: 0
+
+# 4. Sequence: Clamp → Machine → Eject step workflow
+- type: sequence
+  loop: true
+  steps:
+    - wait_ms: 1000
+      actions:
+        - target: D10  # Step number
+          value: 1
+        - target: Y10  # Clamp
+          value: 1
+    - wait_ms: 2000
+      actions:
+        - target: D10
+          value: 2
+        - target: Y11  # Machine
+          value: 1
+    - wait_ms: 1000
+      actions:
+        - target: D10
+          value: 3
+        - target: Y10
+          value: 0
+        - target: Y11
           value: 0
 ```
 

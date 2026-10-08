@@ -1,0 +1,55 @@
+# 自動機の工程シーケンス（ステップ運転）の模擬
+# クランプ → 加工 → アンクランプ・排出 → 原点復帰
+#
+# - D10: 現在の工程ステップ番号（1〜4）
+# - D11: 累計サイクル完了数
+# - Y10: クランプシリンダ前進（ON/OFF）
+# - Y11: 加工ヘッド下降（ON/OFF）
+# - Y12: ワーク排出シリンダ（ON/OFF）
+# - M10: サイクル稼働中フラグ
+- type: sequence
+  loop: true
+  steps:
+    # ステップ1: ワーク搬送・クランプ (1秒)
+    - wait_ms: 1000
+      actions:
+        - target: D10
+          value: 1
+        - target: M10
+          value: 1
+        - target: Y10
+          value: 1
+        - target: Y11
+          value: 0
+        - target: Y12
+          value: 0
+
+    # ステップ2: 加工実行 (2秒)
+    - wait_ms: 2000
+      actions:
+        - target: D10
+          value: 2
+        - target: Y11
+          value: 1
+
+    # ステップ3: 加工完了・アンクランプ・ワーク排出 (1秒)
+    - wait_ms: 1000
+      actions:
+        - target: D10
+          value: 3
+        - target: Y10
+          value: 0
+        - target: Y11
+          value: 0
+        - target: Y12
+          value: 1
+
+    # ステップ4: 原点復帰・サイクル数カウントアップ (0.5秒)
+    - wait_ms: 500
+      actions:
+        - target: D10
+          value: 4
+        - target: Y12
+          value: 0
+        - target: D11
+          expr: "D11 + 1"

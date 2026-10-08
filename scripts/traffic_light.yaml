@@ -1,0 +1,45 @@
+# 交通信号機シーケンス制御
+# 青 → 黄 → 赤 の点灯切り替えサイクル
+#
+# - Y0: 青信号（1=点灯）
+# - Y1: 黄信号（1=点灯）
+# - Y2: 赤信号（1=点灯）
+# - D0: 信号フェーズ番号（1=青, 2=黄, 3=赤）
+- type: sequence
+  loop: true
+  steps:
+    # 青信号点灯 (5秒)
+    - wait_ms: 5000
+      actions:
+        - target: D0
+          value: 1
+        - target: Y0
+          value: 1
+        - target: Y1
+          value: 0
+        - target: Y2
+          value: 0
+
+    # 黄信号点灯 (2秒)
+    - wait_ms: 2000
+      actions:
+        - target: D0
+          value: 2
+        - target: Y0
+          value: 0
+        - target: Y1
+          value: 1
+        - target: Y2
+          value: 0
+
+    # 赤信号点灯 (5秒)
+    - wait_ms: 5000
+      actions:
+        - target: D0
+          value: 3
+        - target: Y0
+          value: 0
+        - target: Y1
+          value: 0
+        - target: Y2
+          value: 1

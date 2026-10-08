@@ -1,0 +1,48 @@
+# タンク自動給排水制御シミュレーション
+# 物理挙動（水位変化）と制御ロジック（上限・下限発停）の協調動作
+#
+# - D200: タンク現在水位（0〜1000 mm）
+# - Y0:   給水ポンプ（1=運転, 0=停止）
+# - Y1:   排水バルブ（1=開, 0=閉）
+# - M20:  満水警報フラグ
+# - M21:  減水警報フラグ
+
+# 水位の物理挙動シミュレーション
+- type: periodic
+  interval_ms: 200
+  actions:
+    # ポンプONなら給水 (+15)、排水弁OPENなら排水 (-10)
+    - target: D200
+      expr: "clamp(D200 + (15 if Y0 else 0) - (10 if Y1 else 0), 0, 1000)"
+
+# 自動水位制御ロジック
+- type: conditional
+  interval_ms: 200
+  conditions:
+    # 上限到達（800mm以上）: 給水ポンプ停止、排水バルブ開
+    - when: "D200 >= 800"
+      actions:
+        - target: Y0
+          value: 0
+        - target: Y1
+          value: 1
+        - target: M20
+          value: 1
+
+    # 下限到達（200mm以下）: 給水ポンプ起動、排水バルブ閉
+    - when: "D200 <= 200"
+      actions:
+        - target: Y0
+          value: 1
+        - target: Y1
+          value: 0
+        - target: M21
+          value: 1
+
+    # 正常水位範囲: 警報解除
+    - when: "D200 > 200 and D200 < 800"
+      actions:
+        - target: M20
+          value: 0
+        - target: M21
+          value: 0

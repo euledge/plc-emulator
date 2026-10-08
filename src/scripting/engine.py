@@ -1,7 +1,11 @@
 import asyncio
+import re
 import time
-from src.scripting.evaluator import SafeEvaluator
+from src.device.device_definition import get_device_type, DeviceType
 from src.device.device_manager import DeviceManager
+from src.scripting.evaluator import SafeEvaluator
+
+DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
 
 
 class ScriptEngine:
@@ -57,6 +61,11 @@ class ScriptEngine:
 
     async def _run_ramp(self, script: dict) -> None:
         target = script["target"]
+        m = DEVICE_PATTERN.match(target)
+        if not m:
+            return
+        dev_type = m.group(1).upper()
+        addr = int(m.group(2))
         start_val = script["start_value"]
         end_val = script["end_value"]
         duration = script["duration_ms"] / 1000
@@ -66,13 +75,13 @@ class ScriptEngine:
             while self.running:
                 elapsed = time.monotonic() - ramp_start
                 if elapsed >= duration:
-                    self.device_manager.write_word(target[:1], int(target[1:]), end_val)
+                    self.device_manager.write_word(dev_type, addr, end_val)
                     if not loop:
                         return
                     break
                 progress = elapsed / duration
                 val = int(start_val + (end_val - start_val) * progress)
-                self.device_manager.write_word(target[:1], int(target[1:]), val)
+                self.device_manager.write_word(dev_type, addr, val)
                 await asyncio.sleep(0.02)
 
     async def _run_conditional(self, script: dict) -> None:
@@ -115,9 +124,11 @@ class ScriptEngine:
         self._evaluator.tick += 1
 
     def _execute_action(self, action: dict) -> None:
-        target = action["target"]
-        dev_type = target[:1]
-        addr = int(target[1:])
+        m = DEVICE_PATTERN.match(action["target"])
+        if not m:
+            return
+        dev_type = m.group(1).upper()
+        addr = int(m.group(2))
 
         if "value" in action:
             val = action["value"]
@@ -126,4 +137,8 @@ class ScriptEngine:
         else:
             return
 
-        self.device_manager.write_word(dev_type, addr, int(val))
+        dtype = get_device_type(dev_type)
+        if dtype == DeviceType.BIT:
+            self.device_manager.write_bit(dev_type, addr, bool(val))
+        else:
+            self.device_manager.write_word(dev_type, addr, int(val))

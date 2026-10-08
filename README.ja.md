@@ -24,7 +24,7 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
   - 設定パネル / デバイスモニタ / 通信ログ / スクリプトエディタ
   - WebSocket リアルタイム更新 / i18n (日本語・英語)
 - **状態保存** JSON ファイルへの save/load
-- **全テスト 113件** (単体・統合 97 + E2E 16)
+- **全テスト 115件** (単体・統合 99 + E2E 16)
 
 ## クイックスタート
 
@@ -32,7 +32,7 @@ MCプロトコル / SLMP対応のPLC通信エミュレータ
 # 依存関係のインストール
 uv sync
 
-# 単体・統合テスト実行 (97件)
+# 単体・統合テスト実行 (99件)
 uv run pytest
 
 # サーバ起動 (http://localhost:8000)
@@ -115,15 +115,31 @@ OpenAPI 3.1 仕様書: [`docs/openapi.json`](docs/openapi.json)
 
 ## スクリプト例
 
+`scripts/examples/` に実用的なシミュレーションサンプルを用意しています。Web UI の「Scripts」画面からも直接実行可能です。
+
+| サンプルファイル | 制御種別 | 主な内容 |
+|---|---|---|
+| `heartbeat.yaml` | `periodic` | 通信生存確認（1秒ごとの M0 点滅・D0 カウンタ更新） |
+| `sawtooth.yaml` | `periodic` | D100 へのノコギリ波書き込み |
+| `sensor_simulation.yaml` | `periodic` | 温度・圧力・流量の計器信号模擬（正弦波・三角波・ノイズ） |
+| `ramp_loop.yaml` | `ramp` | D200 を 0→1000 へ10秒かけて連続変化（ループ） |
+| `conditional.yaml` | `conditional` | D100 の閾値に応じた M0 の ON/OFF 切り替え |
+| `alarm_interlock.yaml` | `conditional` | 高温警報（ヒステリシス付き）および非常停止インターロック |
+| `cylinder_sequence.yaml` | `sequence` | クランプ → 加工 → 排出 → 原点復帰のステップ運転 |
+| `tank_level_control.yaml` | 複合 (`periodic` + `conditional`) | タンク水位の物理挙動模擬とポンプ・排水弁の自動制御 |
+| `traffic_light.yaml` | `sequence` | 交通信号機の点灯サイクル（青 → 黄 → 赤） |
+
+### 記述例
+
 ```yaml
-# 定期実行 (D100 に sawtooth 値を書き込み)
+# 1. 定期実行: 温度センサの模擬（正弦波 + ランダムノイズ）
 - type: periodic
-  interval_ms: 1000
+  interval_ms: 500
   actions:
     - target: D100
-      expr: "t % 1000"
+      expr: "int(clamp(50 + 25 * sin(t * 0.2) + randint(-1, 1), 0, 100))"
 
-# ランプ (D200 を 0→1000 まで10秒で、ループ)
+# 2. ランプ加減速: D200 を 0→1000 まで10秒で変化
 - type: ramp
   target: D200
   start_value: 0
@@ -131,17 +147,42 @@ OpenAPI 3.1 仕様書: [`docs/openapi.json`](docs/openapi.json)
   duration_ms: 10000
   loop: true
 
-# 条件分岐 (D100 > 500 で M0 ON)
+# 3. 条件分岐: 高温警報（75℃以上で警報ON、65℃未満で復帰）
 - type: conditional
   interval_ms: 200
   conditions:
-    - when: "D100 > 500"
+    - when: "D100 >= 75"
       actions:
-        - target: M0
+        - target: M100
           value: 1
-    - when: "D100 <= 500"
+    - when: "D100 < 65"
       actions:
-        - target: M0
+        - target: M100
+          value: 0
+
+# 4. シーケンス: クランプ → 加工 → 排出のステップ工程
+- type: sequence
+  loop: true
+  steps:
+    - wait_ms: 1000
+      actions:
+        - target: D10  # 工程番号
+          value: 1
+        - target: Y10  # クランプ
+          value: 1
+    - wait_ms: 2000
+      actions:
+        - target: D10
+          value: 2
+        - target: Y11  # 加工
+          value: 1
+    - wait_ms: 1000
+      actions:
+        - target: D10
+          value: 3
+        - target: Y10
+          value: 0
+        - target: Y11
           value: 0
 ```
 
