@@ -226,18 +226,19 @@ const DeviceMonitor = {
   },
 
   async clearAll() {
-    if (!confirm('Are you sure you want to clear device memory?')) return;
+    const msg = (typeof I18n !== 'undefined' && I18n.lang === 'ja')
+      ? '監視リストとデバイスメモリを初期化しますか？'
+      : 'Clear all monitored devices and memory?';
+    if (!confirm(msg)) return;
     try {
-      const resp = await fetch('/api/devices/clear', {
+      await fetch('/api/devices/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preserve_latch: false })
       });
-      if (resp.ok) {
-        this.devices.forEach(d => { d.value = 0; });
-        this.renderTable();
-      }
     } catch (e) {}
+    this.devices = [];
+    this.renderTable();
   },
 
   updateRow(msg) {
