@@ -300,3 +300,29 @@ def test_script_editor_syntax_highlight_and_line_numbers(page, server_url):
     assert "color:#6c757d" in highlight_html
     assert "color:#4fc3f7" in highlight_html
     assert "color:#f06292" in highlight_html
+
+
+def test_script_editor_load_preset_template(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='scripts']").click()
+    page.wait_for_selector("#script_template", timeout=5000)
+    page.wait_for_function("document.getElementById('script_template').options.length > 1", timeout=5000)
+
+    # Select traffic_light.yaml from templates dropdown
+    page.locator("#script_template").select_option("traffic_light.yaml")
+    page.locator("#script_load_template").click()
+
+    # Verify content loaded into editor
+    page.wait_for_function("document.getElementById('script_editor').value.length > 0", timeout=5000)
+    content = page.locator("#script_editor").input_value()
+    assert len(content) > 0
+    assert "traffic_light" in page.locator("#script_name").input_value()
+
+    # Validate loaded template
+    page.locator("#script_validate").click()
+    page.wait_for_function("document.getElementById('script_validation_result').textContent.includes('Script is valid')", timeout=5000)
+    assert "Script is valid" in page.locator("#script_validation_result").text_content()
+
+    # Preset template list is distinctively displayed
+    assert page.locator("#template_list").is_visible()
+    assert "traffic_light.yaml" in page.locator("#template_list").text_content()

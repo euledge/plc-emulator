@@ -11,8 +11,8 @@ from src.scripting.parser import ScriptParser
 from src.device.device_definition import get_device_type, DeviceType
 
 router = APIRouter(prefix="/api")
-
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
+EXAMPLES_DIR = SCRIPTS_DIR / "examples"
 
 
 class ConfigUpdate(BaseModel):
@@ -276,8 +276,22 @@ async def latency_config(update: LatencyConfigUpdate, request: Request = None):
 def list_scripts():
     if not SCRIPTS_DIR.exists():
         return []
-    return sorted(f.name for f in SCRIPTS_DIR.iterdir() if f.suffix in (".yaml", ".yml"))
+    return sorted(f.name for f in SCRIPTS_DIR.iterdir() if f.is_file() and f.suffix in (".yaml", ".yml"))
 
+
+@router.get("/scripts/templates")
+def list_script_templates():
+    if not EXAMPLES_DIR.exists():
+        return []
+    return sorted(f.name for f in EXAMPLES_DIR.iterdir() if f.is_file() and f.suffix in (".yaml", ".yml"))
+
+
+@router.get("/scripts/templates/{name}")
+def get_script_template(name: str):
+    path = EXAMPLES_DIR / name
+    if not path.exists() or not path.is_file() or path.suffix not in (".yaml", ".yml"):
+        raise HTTPException(404, "Template not found")
+    return {"name": name, "content": path.read_text(encoding="utf-8")}
 
 @router.get("/scripts/{name}")
 def get_script(name: str):
@@ -290,6 +304,8 @@ def get_script(name: str):
 @router.put("/scripts/{name}")
 def save_script(name: str, data: ScriptContent):
     SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+    if ".." in name or "/" in name or "\\" in name:
+        raise HTTPException(400, "Invalid script name")
     path = SCRIPTS_DIR / name
     if path.suffix not in (".yaml", ".yml"):
         raise HTTPException(400, "Only .yaml/.yml files allowed")

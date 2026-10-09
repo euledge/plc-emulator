@@ -23,6 +23,7 @@ Thumbs.db
 saves/
 *.json
 !docs/*.json
+!src/i18n/*.json
 
 # Test artifacts
 .pytest_cache/

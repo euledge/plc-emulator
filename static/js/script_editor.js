@@ -18,6 +18,10 @@ const ScriptEditor = {
               <button id="script_new">New</button>
               <button id="script_load">Load</button>
               <button id="script_save">Save</button>
+              <select id="script_template" style="padding:0.3rem 0.5rem;background:#0f3460;color:#e0e0e0;border:1px solid #333;border-radius:4px;font-size:0.85rem;">
+                <option value="">-- Template --</option>
+              </select>
+              <button id="script_load_template" class="secondary" data-i18n="script.load_template">Load Template</button>
               <button id="script_validate" class="secondary" data-i18n="script.validate">Validate</button>
               <button id="script_start" class="secondary" data-i18n="script.start">Start</button>
               <button id="script_pause" class="secondary" data-i18n="script.pause">Pause</button>
@@ -36,13 +40,22 @@ const ScriptEditor = {
         </div>
       </div>
       <div class="panel">
-        <h3>Saved Scripts</h3>
-        <div id="script_list"></div>
+        <div style="display:flex;gap:2rem;">
+          <div style="flex:1;">
+            <h3>Saved Scripts</h3>
+            <div id="script_list"></div>
+          </div>
+          <div style="flex:1;">
+            <h3 data-i18n="script.templates">Preset Templates</h3>
+            <div id="template_list"></div>
+          </div>
+        </div>
       </div>`;
 
     document.getElementById('script_new').addEventListener('click', () => this.newScript());
     document.getElementById('script_load').addEventListener('click', () => this.loadScript());
     document.getElementById('script_save').addEventListener('click', () => this.saveScript());
+    document.getElementById('script_load_template').addEventListener('click', () => this.loadTemplate());
     document.getElementById('script_validate').addEventListener('click', () => this.validateScript());
     document.getElementById('script_start').addEventListener('click', () => this.startScript());
     document.getElementById('script_pause').addEventListener('click', () => this.pauseScript());
@@ -53,6 +66,7 @@ const ScriptEditor = {
       editor.addEventListener('scroll', () => this.updateEditor());
     }
     await this.refreshList();
+    await this.refreshTemplates();
     this.updateEditor();
   },
 
@@ -63,6 +77,40 @@ const ScriptEditor = {
     container.innerHTML = scripts.map(s =>
       `<div style="padding:0.3rem;border-bottom:1px solid #0f3460;cursor:pointer" onclick="ScriptEditor.loadByName('${s}')">${s}</div>`
     ).join('');
+  },
+
+  async refreshTemplates() {
+    try {
+      const resp = await fetch('/api/scripts/templates');
+      if (!resp.ok) return;
+      const templates = await resp.json();
+      const select = document.getElementById('script_template');
+      if (select) {
+        select.innerHTML = '<option value="">-- Template --</option>' +
+          templates.map(t => `<option value="${t}">${t}</option>`).join('');
+      }
+      const container = document.getElementById('template_list');
+      if (container) {
+        container.innerHTML = templates.map(t =>
+          `<div style="padding:0.3rem;border-bottom:1px solid #0f3460;cursor:pointer;color:#4ecca3;" onclick="ScriptEditor.loadTemplate('${t}')">${t}</div>`
+        ).join('');
+      }
+    } catch (e) {}
+  },
+
+  async loadTemplate(name) {
+    const templateName = name || document.getElementById('script_template')?.value;
+    if (!templateName) return;
+    try {
+      const resp = await fetch(`/api/scripts/templates/${encodeURIComponent(templateName)}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      document.getElementById('script_name').value = data.name;
+      document.getElementById('script_editor').value = data.content;
+      this.current = null;
+      this.setStatus('stopped');
+      this.updateEditor();
+    } catch (e) {}
   },
 
   newScript() {
