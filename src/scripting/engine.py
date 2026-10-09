@@ -134,7 +134,7 @@ class ScriptEngine:
                     if result:
                         for action in cond["actions"]:
                             self._execute_action(action)
-                except (ValueError, KeyError):
+                except (ValueError, KeyError, TimeoutError):
                     pass
 
     async def _run_sequence(self, script: dict) -> None:
@@ -171,7 +171,10 @@ class ScriptEngine:
         if "value" in action:
             val = action["value"]
         elif "expr" in action:
-            val = self._evaluator.evaluate(action["expr"])
+            try:
+                val = self._evaluator.evaluate(action["expr"])
+            except (ValueError, TimeoutError):
+                return
         else:
             return
 

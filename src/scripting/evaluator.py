@@ -1,6 +1,7 @@
 import ast
 import operator
 import re
+import time
 from src.scripting.builtins import BUILTIN_FUNCTIONS
 from src.device.device_manager import DeviceManager
 from src.device.device_definition import get_device_type, DeviceType
@@ -17,6 +18,11 @@ ALLOWED_NODES = {
     ast.keyword,
     ast.IfExp,
 }
+def safe_pow(a, b):
+    if isinstance(b, (int, float)) and (b > 1000 or b < -1000):
+        raise TimeoutError("Exponent too large for safe evaluation")
+    return a ** b
+
 
 BINOP_MAP = {
     ast.Add: operator.add,
@@ -25,9 +31,8 @@ BINOP_MAP = {
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
+    ast.Pow: safe_pow,
 }
-
 UNARYOP_MAP = {
     ast.UAdd: operator.pos,
     ast.USub: operator.neg,
@@ -47,23 +52,36 @@ DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
 
 
 class SafeEvaluator:
-    def __init__(self, device_manager: DeviceManager | None = None) -> None:
+    def __init__(self, device_manager: DeviceManager | None = None, timeout: float = 0.05) -> None:
         self.device_manager = device_manager or DeviceManager()
+        self.timeout = timeout
         self.elapsed: float = 0.0
         self.delta: float = 0.0
         self.tick: int = 0
+        self._eval_start: float = 0.0
+        self._step_count: int = 0
 
     def evaluate(self, expr: str) -> object:
+        self._eval_start = time.monotonic()
+        self._step_count = 0
         tree = ast.parse(expr, mode="eval")
         self._check(tree)
         return self._eval(tree.body)
 
     def _check(self, node: ast.AST) -> None:
+        count = 0
         for child in ast.walk(node):
+            count += 1
+            if count > 500:
+                raise TimeoutError("Expression AST too complex")
             if type(child) not in ALLOWED_NODES:
                 raise ValueError(f"Node type not allowed: {type(child).__name__}")
 
     def _eval(self, node: ast.AST) -> object:
+        self._step_count += 1
+        if self._step_count % 8 == 0 or time.monotonic() - self._eval_start > self.timeout:
+            if time.monotonic() - self._eval_start > self.timeout:
+                raise TimeoutError(f"Expression evaluation timed out ({self.timeout}s exceeded)")
         if isinstance(node, ast.Constant):
             return node.value
         elif isinstance(node, ast.Name):
