@@ -43,12 +43,26 @@ class DeviceManager:
             raise ValueError(f"Invalid PLC status: {status}")
         self.plc_status = val
 
-    def clear_memory(self, preserve_latch: bool = False) -> None:
+    def clear_memory(self, preserve_latch: bool = False, device_type: str | None = None) -> None:
+        cleared_entries = []
         with self._lock:
-            for dev_type in list(self._words.keys()):
-                if preserve_latch and dev_type.upper() == "L":
-                    continue
-                self._words[dev_type] = [0] * len(self._words[dev_type])
+            if device_type:
+                dt = device_type.upper()
+                if dt in self._words:
+                    for addr, v in enumerate(self._words[dt]):
+                        if v != 0:
+                            cleared_entries.append((dt, addr))
+                    self._words[dt] = [0] * len(self._words[dt])
+            else:
+                for dt in list(self._words.keys()):
+                    if preserve_latch and dt.upper() == "L":
+                        continue
+                    for addr, v in enumerate(self._words[dt]):
+                        if v != 0:
+                            cleared_entries.append((dt, addr))
+                    self._words[dt] = [0] * len(self._words[dt])
+        for dt, addr in cleared_entries:
+            self._notify(dt, addr, 0)
     def on_change(self, callback: callable) -> None:
         self._callbacks.append(callback)
 

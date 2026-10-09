@@ -43,6 +43,11 @@ class ScriptContent(BaseModel):
 class ScriptValidationRequest(BaseModel):
     content: str
 
+class DeviceClearRequest(BaseModel):
+    device_type: str | None = None
+    preserve_latch: bool = False
+
+
 class SaveLoadRequest(BaseModel):
     name: str = "plc_state.json"
 
@@ -230,6 +235,19 @@ async def put_device(device_type: str, address: int, update: DeviceValueUpdate, 
         return {"status": "ok"}
     except (ValueError, IndexError) as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/devices/clear")
+def clear_devices(request: Request, data: DeviceClearRequest = DeviceClearRequest()):
+    state = get_state(request)
+    if data.device_type:
+        dt = data.device_type.upper()
+        if get_device_type(dt) is None:
+            raise HTTPException(400, f"Unknown device type: {data.device_type}")
+        state.device_manager.clear_memory(preserve_latch=data.preserve_latch, device_type=dt)
+    else:
+        state.device_manager.clear_memory(preserve_latch=data.preserve_latch)
+    return {"status": "ok", "cleared": True}
 
 
 @router.get("/latency/stats")

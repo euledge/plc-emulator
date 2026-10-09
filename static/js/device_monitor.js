@@ -22,7 +22,10 @@ const DeviceMonitor = {
           </div>
           <div class="form-group">
             <label>&nbsp;</label>
-            <button id="mon_add">Add</button>
+            <div class="btn-row">
+              <button id="mon_add">Add</button>
+              <button id="mon_clear" class="secondary" data-i18n="monitor.clear">Clear All</button>
+            </div>
           </div>
         </div>
       </div>
@@ -34,6 +37,7 @@ const DeviceMonitor = {
         </tr></thead><tbody id="mon_table"></tbody></table>
       </div>`;
     document.getElementById('mon_add').addEventListener('click', () => this.addDevice());
+    document.getElementById('mon_clear').addEventListener('click', () => this.clearAll());
     this.connectWs();
   },
 
@@ -80,6 +84,21 @@ const DeviceMonitor = {
   removeDevice(i) {
     this.devices.splice(i, 1);
     this.renderTable();
+  },
+
+  async clearAll() {
+    if (!confirm('Are you sure you want to clear device memory?')) return;
+    try {
+      const resp = await fetch('/api/devices/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preserve_latch: false })
+      });
+      if (resp.ok) {
+        this.devices.forEach(d => { d.value = 0; });
+        this.renderTable();
+      }
+    } catch (e) {}
   },
 
   updateRow(msg) {
