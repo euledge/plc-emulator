@@ -162,7 +162,7 @@
 ### FR-006-2: デバイスモニタ
 - [x] デバイス種別タブ切替（D, M, X, Y, W, R等）
 - [x] 開始アドレス指定
-- [ ] 表示形式切替: DEC符号なし / DEC符号付き / HEX / BIN / FLOAT / ASCII（DEC, HEX, BINのみ対応）
+- [x] 表示形式切替: DEC符号なし / DEC符号付き / HEX / BIN / FLOAT / ASCII
 - [x] ダブルクリックで値を直接編集
 - [x] WebSocketによるリアルタイム更新
 

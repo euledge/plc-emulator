@@ -164,6 +164,31 @@ def test_device_monitor_tab_switching(page, server_url):
     assert "100" in table_d
     assert "50" not in table_d
 
+def test_device_monitor_format_switching(page, server_url, api):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_selector("#mon_add", timeout=5000)
+
+    # Pre-populate D300 = 65535
+    api.put("/api/devices/D/300", json={"value": 65535})
+
+    # Add D300 to monitor table
+    page.locator("#mon_device").select_option("D")
+    page.locator("#mon_address").fill("300")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.getElementById('val_0') && document.getElementById('val_0').textContent !== '---'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "65535"
+
+    # Switch row format to DEC (Signed) -> -1
+    page.locator(".row-format").first.select_option("DEC_SIGNED")
+    page.wait_for_function("document.getElementById('val_0').textContent === '-1'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "-1"
+
+    # Switch row format to HEX -> 0xFFFF
+    page.locator(".row-format").first.select_option("HEX")
+    page.wait_for_function("document.getElementById('val_0').textContent === '0xFFFF'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "0xFFFF"
+
 def test_language_switch_to_en(page, server_url):
     page.goto(server_url)
     page.locator("button[data-lang='en']").click()

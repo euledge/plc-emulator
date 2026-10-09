@@ -2,6 +2,7 @@ const DeviceMonitor = {
   ws: null,
   devices: [],
   currentTab: 'D',
+
   async init() {
     const container = document.getElementById('page-monitor');
     container.innerHTML = `
@@ -29,7 +30,14 @@ const DeviceMonitor = {
           </div>
           <div class="form-group">
             <label data-i18n="monitor.format">Format</label>
-            <select id="mon_format"><option>DEC</option><option>HEX</option><option>BIN</option></select>
+            <select id="mon_format">
+              <option value="DEC">DEC</option>
+              <option value="DEC_SIGNED">DEC (Signed)</option>
+              <option value="HEX">HEX</option>
+              <option value="BIN">BIN</option>
+              <option value="FLOAT">FLOAT</option>
+              <option value="ASCII">ASCII</option>
+            </select>
           </div>
           <div class="form-group">
             <label>&nbsp;</label>
@@ -44,7 +52,9 @@ const DeviceMonitor = {
         <table><thead><tr>
           <th data-i18n="monitor.device">Device</th>
           <th data-i18n="monitor.address">Address</th>
+          <th data-i18n="monitor.format">Format</th>
           <th data-i18n="monitor.value">Value</th>
+          <th></th>
         </tr></thead><tbody id="mon_table"></tbody></table>
       </div>`;
     document.getElementById('mon_add').addEventListener('click', () => this.addDevice());
@@ -66,6 +76,7 @@ const DeviceMonitor = {
     });
     this.renderTable();
   },
+
   connectWs() {
     if (this.ws) this.ws.close();
     this.ws = new WebSocket(`ws://${location.host}/ws`);
@@ -76,10 +87,49 @@ const DeviceMonitor = {
     this.ws.onclose = () => setTimeout(() => this.connectWs(), 1000);
   },
 
-  formatValue(val, fmt) {
+  formatValue(val, fmt, d) {
     if (val === null || val === undefined) return '---';
-    if (fmt === 'HEX') return `0x${val.toString(16).toUpperCase()}`;
-    if (fmt === 'BIN') return `0b${val.toString(2)}`;
+    const num = Number(val);
+    if (fmt === 'DEC' || fmt === 'DEC_UNSIGNED') {
+      return String(num & 0xFFFF);
+    }
+    if (fmt === 'DEC_SIGNED') {
+      const u16 = num & 0xFFFF;
+      const s16 = u16 >= 0x8000 ? u16 - 0x10000 : u16;
+      return String(s16);
+    }
+    if (fmt === 'HEX') {
+      return '0x' + (num & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+    }
+    if (fmt === 'BIN') {
+      return '0b' + (num & 0xFFFF).toString(2).padStart(16, '0');
+    }
+    if (fmt === 'ASCII') {
+      const u16 = num & 0xFFFF;
+      const b0 = u16 & 0xFF;
+      const b1 = (u16 >> 8) & 0xFF;
+      const c0 = (b0 >= 32 && b0 <= 126) ? String.fromCharCode(b0) : '.';
+      const c1 = (b1 >= 32 && b1 <= 126) ? String.fromCharCode(b1) : '.';
+      return `'${c0}${c1}'`;
+    }
+    if (fmt === 'FLOAT') {
+      let highWord = 0;
+      if (d) {
+        const next = this.devices.find(x => x.device === d.device && x.address === d.address + 1);
+        if (next && next.value !== null && next.value !== undefined) {
+          highWord = Number(next.value) & 0xFFFF;
+        } else if (d.highWord !== undefined && d.highWord !== null) {
+          highWord = Number(d.highWord) & 0xFFFF;
+        }
+      }
+      const buf = new ArrayBuffer(4);
+      const view = new DataView(buf);
+      view.setUint16(0, num & 0xFFFF, true);
+      view.setUint16(2, highWord & 0xFFFF, true);
+      const f = view.getFloat32(0, true);
+      if (!Number.isFinite(f)) return String(f);
+      return Number.isInteger(f) ? f.toFixed(1) : parseFloat(f.toPrecision(7)).toString();
+    }
     return String(val);
   },
 
@@ -93,6 +143,9 @@ const DeviceMonitor = {
     } else {
       this.renderTable();
     }
+    if (fmt === 'FLOAT' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr + 1 }));
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr }));
     }
@@ -105,7 +158,7 @@ const DeviceMonitor = {
       .filter(d => d.device === this.currentTab);
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#888;padding:1rem;">No ${this.currentTab} devices monitored. Add one above.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#888;padding:1rem;">No ${this.currentTab} devices monitored. Add one above.</td></tr>`;
       return;
     }
 
@@ -113,10 +166,30 @@ const DeviceMonitor = {
       `<tr>
         <td>${d.device}</td>
         <td>${d.address}</td>
-        <td id="val_${d.originalIndex}" class="editable-val" title="Double-click to edit" style="cursor:pointer;" ondblclick="DeviceMonitor.editCell(${d.originalIndex})">${this.formatValue(d.value, d.format)}</td>
+        <td>
+          <select class="row-format" style="width:auto;padding:2px 4px;font-size:0.8rem;" onchange="DeviceMonitor.changeFormat(${d.originalIndex}, this.value)">
+            <option value="DEC"${d.format === 'DEC' ? ' selected' : ''}>DEC</option>
+            <option value="DEC_SIGNED"${d.format === 'DEC_SIGNED' ? ' selected' : ''}>DEC (Signed)</option>
+            <option value="HEX"${d.format === 'HEX' ? ' selected' : ''}>HEX</option>
+            <option value="BIN"${d.format === 'BIN' ? ' selected' : ''}>BIN</option>
+            <option value="FLOAT"${d.format === 'FLOAT' ? ' selected' : ''}>FLOAT</option>
+            <option value="ASCII"${d.format === 'ASCII' ? ' selected' : ''}>ASCII</option>
+          </select>
+        </td>
+        <td id="val_${d.originalIndex}" class="editable-val" title="Double-click to edit" style="cursor:pointer;" ondblclick="DeviceMonitor.editCell(${d.originalIndex})">${this.formatValue(d.value, d.format, d)}</td>
         <td><button class="secondary" onclick="DeviceMonitor.removeDevice(${d.originalIndex})">×</button></td>
       </tr>`
     ).join('');
+  },
+
+  changeFormat(i, fmt) {
+    if (this.devices[i]) {
+      this.devices[i].format = fmt;
+      if (fmt === 'FLOAT' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'monitor_add', device: this.devices[i].device, address: this.devices[i].address + 1 }));
+      }
+      this.renderTable();
+    }
   },
 
   removeDevice(i) {
@@ -140,15 +213,20 @@ const DeviceMonitor = {
   },
 
   updateRow(msg) {
-    const idx = this.devices.findIndex(d => d.device === msg.device && d.address === msg.address);
-    if (idx >= 0) {
-      this.devices[idx].value = msg.value;
-      if (msg.device === this.currentTab) {
-        const el = document.getElementById(`val_${idx}`);
-        if (el && !el.querySelector('input')) {
-          el.textContent = this.formatValue(msg.value, this.devices[idx].format);
+    let touched = false;
+    this.devices.forEach((d, idx) => {
+      if (d.device === msg.device) {
+        if (d.address === msg.address) {
+          d.value = msg.value;
+          touched = true;
+        } else if (d.format === 'FLOAT' && d.address + 1 === msg.address) {
+          d.highWord = msg.value;
+          touched = true;
         }
       }
+    });
+    if (touched) {
+      this.renderTable();
     }
   },
 
@@ -176,10 +254,66 @@ const DeviceMonitor = {
   async commitEdit(i, str) {
     const d = this.devices[i];
     if (!d) return;
+
+    if (d.format === 'FLOAT') {
+      const f = parseFloat(str);
+      if (isNaN(f) || !isFinite(f)) {
+        this.renderTable();
+        return;
+      }
+      const buf = new ArrayBuffer(4);
+      const view = new DataView(buf);
+      view.setFloat32(0, f, true);
+      const low = view.getUint16(0, true);
+      const high = view.getUint16(2, true);
+      try {
+        await fetch(`/api/devices/${encodeURIComponent(d.device)}/${d.address}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: low })
+        });
+        await fetch(`/api/devices/${encodeURIComponent(d.device)}/${d.address + 1}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: high })
+        });
+        d.value = low;
+        d.highWord = high;
+      } catch (e) {}
+      this.renderTable();
+      return;
+    }
+
+    if (d.format === 'ASCII') {
+      let clean = str.replace(/^['"]|['"]$/g, '');
+      const c0 = clean.length > 0 ? clean.charCodeAt(0) : 0;
+      const c1 = clean.length > 1 ? clean.charCodeAt(1) : 0;
+      const val = (c0 & 0xFF) | ((c1 & 0xFF) << 8);
+      try {
+        await fetch(`/api/devices/${encodeURIComponent(d.device)}/${d.address}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: val })
+        });
+        d.value = val;
+      } catch (e) {}
+      this.renderTable();
+      return;
+    }
+
     let val;
-    if (str.startsWith('0x') || str.startsWith('0X')) val = parseInt(str, 16);
-    else if (str.startsWith('0b') || str.startsWith('0B')) val = parseInt(str, 2);
-    else val = parseInt(str, 10);
+    if (d.format === 'DEC_SIGNED') {
+      val = parseInt(str, 10);
+      if (!isNaN(val)) {
+        val = val < 0 ? (val + 0x10000) & 0xFFFF : val & 0xFFFF;
+      }
+    } else if (str.startsWith('0x') || str.startsWith('0X')) {
+      val = parseInt(str, 16);
+    } else if (str.startsWith('0b') || str.startsWith('0B')) {
+      val = parseInt(str, 2);
+    } else {
+      val = parseInt(str, 10);
+    }
 
     if (isNaN(val)) {
       this.renderTable();
