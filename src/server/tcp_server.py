@@ -32,6 +32,7 @@ class TcpServer:
         self.on_comm_log = on_comm_log
         self._server: asyncio.AbstractServer | None = None
         self._active_writer: asyncio.StreamWriter | None = None
+        self._client_lock = asyncio.Lock()
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(
@@ -43,14 +44,14 @@ class TcpServer:
         logger.info("TCP server started on %s:%d", self.host, self.port)
 
     async def stop(self) -> None:
-        if self._active_writer:
-            try:
-                self._active_writer.close()
-                await self._active_writer.wait_closed()
-            except Exception:
-                pass
-            self._active_writer = None
-
+        async with self._client_lock:
+            if self._active_writer:
+                try:
+                    self._active_writer.close()
+                    await self._active_writer.wait_closed()
+                except Exception:
+                    pass
+                self._active_writer = None
         if self._server:
             self._server.close()
             await self._server.wait_closed()
@@ -119,13 +120,13 @@ class TcpServer:
         peername = writer.get_extra_info("peername")
         logger.info("Client connected: %s", peername)
 
-        if self._active_writer is not None:
-            logger.warning("Another client connected, rejecting new connection")
-            writer.close()
-            await writer.wait_closed()
-            return
-
-        self._active_writer = writer
+        async with self._client_lock:
+            if self._active_writer is not None:
+                logger.warning("Another client connected, rejecting new connection")
+                writer.close()
+                await writer.wait_closed()
+                return
+            self._active_writer = writer
         buf = bytearray()
 
         try:
@@ -149,8 +150,9 @@ class TcpServer:
         except Exception:
             logger.exception("Error handling client")
         finally:
-            if self._active_writer == writer:
-                self._active_writer = None
+            async with self._client_lock:
+                if self._active_writer == writer:
+                    self._active_writer = None
             try:
                 writer.close()
                 await writer.wait_closed()

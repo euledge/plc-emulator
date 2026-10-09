@@ -270,6 +270,105 @@ async def test_tcp_second_connection_does_not_displace_active_client():
 
 
 @pytest.mark.asyncio
+async def test_tcp_competing_connection_rejection_and_subsequent_reconnect():
+    dm = DeviceManager()
+    server = TcpServer(port=0, device_manager=dm)
+    await server.start()
+    try:
+        # 1. Client 1 connects and writes D0 = 100
+        r1, w1 = await asyncio.open_connection("127.0.0.1", server.port)
+        try:
+            w1.write(make_3e_write_req(DeviceCode3E.D, 0, [100]))
+            await w1.drain()
+            resp = await asyncio.wait_for(r1.readexactly(10), timeout=2)
+            assert struct.unpack_from("<H", resp, 8)[0] == 0
+            assert dm.read_word("D", 0) == 100
+
+            # 2. Client 2 attempts to connect while Client 1 is active -> rejected
+            r2, w2 = await asyncio.open_connection("127.0.0.1", server.port)
+            try:
+                # Reading from rejected client returns EOF
+                assert await asyncio.wait_for(r2.read(10), timeout=2) == b""
+            finally:
+                w2.close()
+                await w2.wait_closed()
+
+            # 3. Client 1 continues communicating without disruption
+            w1.write(make_3e_write_req(DeviceCode3E.D, 1, [200]))
+            await w1.drain()
+            resp = await asyncio.wait_for(r1.readexactly(10), timeout=2)
+            assert struct.unpack_from("<H", resp, 8)[0] == 0
+            assert dm.read_word("D", 1) == 200
+        finally:
+            # 4. Client 1 disconnects cleanly
+            w1.close()
+            await w1.wait_closed()
+
+        # 5. Client 2 reconnects after Client 1 disconnected -> accepted!
+        r2_reconnect, w2_reconnect = await asyncio.open_connection("127.0.0.1", server.port)
+        try:
+            w2_reconnect.write(make_3e_write_req(DeviceCode3E.D, 2, [300]))
+            await w2_reconnect.drain()
+            resp = await asyncio.wait_for(r2_reconnect.readexactly(10), timeout=2)
+            assert struct.unpack_from("<H", resp, 8)[0] == 0
+            assert dm.read_word("D", 2) == 300
+
+            # Read all 3 values (D0, D1, D2)
+            w2_reconnect.write(make_3e_read_req(DeviceCode3E.D, 0, 3))
+            await w2_reconnect.drain()
+            resp = await asyncio.wait_for(r2_reconnect.readexactly(16), timeout=2)
+            assert struct.unpack_from("<H", resp, 8)[0] == 0
+            v0, v1, v2 = struct.unpack_from("<HHH", resp, 10)
+            assert (v0, v1, v2) == (100, 200, 300)
+        finally:
+            w2_reconnect.close()
+            await w2_reconnect.wait_closed()
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_tcp_concurrent_connection_race_only_one_active():
+    server = TcpServer(port=0)
+    await server.start()
+    try:
+        # Launch 5 concurrent connection attempts
+        pairs = await asyncio.gather(
+            *[asyncio.open_connection("127.0.0.1", server.port) for _ in range(5)]
+        )
+        try:
+            active = []
+            rejected = []
+            for r, w in pairs:
+                # Check if connection was closed immediately
+                try:
+                    data = await asyncio.wait_for(r.read(1), timeout=0.2)
+                    if data == b"":
+                        rejected.append((r, w))
+                    else:
+                        active.append((r, w))
+                except asyncio.TimeoutError:
+                    active.append((r, w))
+
+            # Exactly 1 connection must be active, 4 must be rejected
+            assert len(active) == 1
+            assert len(rejected) == 4
+
+            # Active connection can communicate
+            act_r, act_w = active[0]
+            act_w.write(make_3e_read_req(DeviceCode3E.D, 0, 1))
+            await act_w.drain()
+            resp = await asyncio.wait_for(act_r.readexactly(12), timeout=2)
+            assert struct.unpack_from("<H", resp, 8)[0] == 0
+        finally:
+            for r, w in pairs:
+                w.close()
+            for r, w in pairs:
+                await w.wait_closed()
+    finally:
+        await server.stop()
+
+@pytest.mark.asyncio
 async def test_tcp_3e_response_preserves_request_access_path():
     server = TcpServer(port=0)
     await server.start()
