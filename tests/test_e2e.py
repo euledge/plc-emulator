@@ -134,6 +134,36 @@ def test_device_monitor_add_and_edit_device(page, server_url, api):
     assert resp.json()["values"] == [9876]
 
 
+def test_device_monitor_tab_switching(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_selector(".device-tab", timeout=5000)
+
+    # 1. Add D100
+    page.locator("#mon_device").select_option("D")
+    page.locator("#mon_address").fill("100")
+    page.locator("#mon_add").click()
+    assert "D" in page.locator("#mon_table").text_content()
+
+    # 2. Switch tab to M
+    page.locator(".device-tab[data-dev='M']").click()
+    assert "No M devices monitored" in page.locator("#mon_table").text_content()
+
+    # 3. Add M50 on M tab
+    page.locator("#mon_address").fill("50")
+    page.locator("#mon_add").click()
+    table_m = page.locator("#mon_table").text_content()
+    assert "M" in table_m
+    assert "50" in table_m
+    assert "100" not in table_m
+
+    # 4. Switch back to D tab
+    page.locator(".device-tab[data-dev='D']").click()
+    table_d = page.locator("#mon_table").text_content()
+    assert "D" in table_d
+    assert "100" in table_d
+    assert "50" not in table_d
+
 def test_language_switch_to_en(page, server_url):
     page.goto(server_url)
     page.locator("button[data-lang='en']").click()

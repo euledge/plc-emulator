@@ -58,3 +58,16 @@ textarea {
 .form-group { flex: 1; }
 .stats { display: flex; gap: 1rem; margin-top: 0.5rem; }
 .stat-item { background: #0f3460; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.85rem; }
+.device-tab {
+  background: #0f3460;
+  color: #aaa;
+  border: 1px solid #333;
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.device-tab:hover, .device-tab.active {
+  background: #e94560;
+  color: #fff;
+  border-color: #e94560;
+}
