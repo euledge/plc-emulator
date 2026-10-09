@@ -6,6 +6,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from src.scripting.engine import ScriptEngine
+from src.device.device_definition import get_device_type, DeviceType
 
 router = APIRouter(prefix="/api")
 
@@ -194,15 +195,37 @@ async def apply_config_update(state, update: ConfigUpdate):
 @router.get("/devices/{device_type}")
 def get_devices(device_type: str, start: int = 0, count: int = 10, request: Request = None):
     state = get_state(request)
-    values = state.device_manager.batch_read(device_type.upper(), start, count)
-    return {"type": device_type.upper(), "start": start, "values": values}
+    dev = device_type.upper()
+    dtype = get_device_type(dev)
+    if dtype is None:
+        raise HTTPException(400, f"Unknown device type: {device_type}")
+    try:
+        if dtype == DeviceType.BIT:
+            values = [1 if state.device_manager.read_bit(dev, start + i) else 0 for i in range(count)]
+        else:
+            values = state.device_manager.batch_read(dev, start, count)
+        return {"type": dev, "start": start, "values": values}
+    except (ValueError, IndexError) as e:
+        raise HTTPException(400, str(e))
 
 
 @router.put("/devices/{device_type}/{address}")
 async def put_device(device_type: str, address: int, update: DeviceValueUpdate, request: Request = None):
     state = get_state(request)
-    state.device_manager.write_word(device_type.upper(), address, update.value)
-    return {"status": "ok"}
+    dev = device_type.upper()
+    dtype = get_device_type(dev)
+    if dtype is None:
+        raise HTTPException(400, f"Unknown device type: {device_type}")
+    try:
+        if dtype == DeviceType.BIT:
+            state.device_manager.write_bit(dev, address, bool(update.value))
+        else:
+            if update.value < 0 or update.value > 65535:
+                raise HTTPException(400, "Word value must be between 0 and 65535")
+            state.device_manager.write_word(dev, address, update.value)
+        return {"status": "ok"}
+    except (ValueError, IndexError) as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/latency/stats")

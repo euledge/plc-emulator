@@ -97,7 +97,7 @@ def test_settings_save_changes(page, server_url, api):
     page.wait_for_function("document.getElementById('server_status').textContent === 'Saved'", timeout=5000)
 
 
-def test_device_monitor_add_device(page, server_url):
+def test_device_monitor_add_and_edit_device(page, server_url, api):
     page.goto(server_url)
     page.locator(".nav-link[data-page='monitor']").click()
     page.wait_for_function("document.getElementById('mon_add') !== null", timeout=5000)
@@ -107,6 +107,18 @@ def test_device_monitor_add_device(page, server_url):
     table = page.locator("#mon_table")
     assert "D" in table.text_content()
     assert "100" in table.text_content()
+
+    # Double-click to edit cell #val_0
+    page.locator("#val_0").dblclick()
+    input_el = page.locator("#edit_input_0")
+    input_el.fill("9876")
+    input_el.press("Enter")
+
+    page.wait_for_function("document.getElementById('val_0').textContent === '9876'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "9876"
+
+    resp = api.get("/api/devices/D?start=100&count=1")
+    assert resp.json()["values"] == [9876]
 
 
 def test_language_switch_to_en(page, server_url):

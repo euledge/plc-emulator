@@ -47,11 +47,18 @@ const DeviceMonitor = {
     this.ws.onclose = () => setTimeout(() => this.connectWs(), 1000);
   },
 
+  formatValue(val, fmt) {
+    if (val === null || val === undefined) return '---';
+    if (fmt === 'HEX') return `0x${val.toString(16).toUpperCase()}`;
+    if (fmt === 'BIN') return `0b${val.toString(2)}`;
+    return String(val);
+  },
+
   addDevice() {
     const dev = document.getElementById('mon_device').value;
     const addr = parseInt(document.getElementById('mon_address').value);
     const fmt = document.getElementById('mon_format').value;
-    this.devices.push({ device: dev, address: addr, format: fmt });
+    this.devices.push({ device: dev, address: addr, format: fmt, value: null });
     this.renderTable();
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr }));
@@ -64,7 +71,7 @@ const DeviceMonitor = {
       `<tr>
         <td>${d.device}</td>
         <td>${d.address}</td>
-        <td id="val_${i}">---</td>
+        <td id="val_${i}" class="editable-val" title="Double-click to edit" style="cursor:pointer;" ondblclick="DeviceMonitor.editCell(${i})">${this.formatValue(d.value, d.format)}</td>
         <td><button class="secondary" onclick="DeviceMonitor.removeDevice(${i})">×</button></td>
       </tr>`
     ).join('');
@@ -78,11 +85,64 @@ const DeviceMonitor = {
   updateRow(msg) {
     const idx = this.devices.findIndex(d => d.device === msg.device && d.address === msg.address);
     if (idx >= 0) {
+      this.devices[idx].value = msg.value;
       const el = document.getElementById(`val_${idx}`);
-      if (el) {
-        const fmt = this.devices[idx].format;
-        el.textContent = fmt === 'HEX' ? `0x${msg.value.toString(16).toUpperCase()}` : fmt === 'BIN' ? `0b${msg.value.toString(2)}` : msg.value;
+      if (el && !el.querySelector('input')) {
+        el.textContent = this.formatValue(msg.value, this.devices[idx].format);
       }
+    }
+  },
+
+  editCell(i) {
+    const el = document.getElementById(`val_${i}`);
+    if (!el || el.querySelector('input')) return;
+    const currentVal = this.devices[i].value ?? 0;
+    el.innerHTML = `<input type="text" id="edit_input_${i}" value="${currentVal}" style="width:100%;max-width:120px;padding:2px 4px;background:#1a1a2e;color:#fff;border:1px solid #4ecca3;border-radius:3px;">`;
+    const input = document.getElementById(`edit_input_${i}`);
+    input.focus();
+    input.select();
+    let committed = false;
+    const commit = async () => {
+      if (committed) return;
+      committed = true;
+      await this.commitEdit(i, input.value.trim());
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') commit();
+      else if (e.key === 'Escape') { committed = true; this.renderTable(); }
+    });
+    input.addEventListener('blur', commit);
+  },
+
+  async commitEdit(i, str) {
+    const d = this.devices[i];
+    if (!d) return;
+    let val;
+    if (str.startsWith('0x') || str.startsWith('0X')) val = parseInt(str, 16);
+    else if (str.startsWith('0b') || str.startsWith('0B')) val = parseInt(str, 2);
+    else val = parseInt(str, 10);
+
+    if (isNaN(val)) {
+      this.renderTable();
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/devices/${encodeURIComponent(d.device)}/${d.address}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: val })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(err.detail || 'Value update failed');
+        this.renderTable();
+        return;
+      }
+      d.value = val;
+      this.renderTable();
+    } catch (e) {
+      this.renderTable();
     }
   }
 };
