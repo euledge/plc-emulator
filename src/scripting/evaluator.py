@@ -76,7 +76,10 @@ class SafeEvaluator:
                 raise TimeoutError("Expression AST too complex")
             if type(child) not in ALLOWED_NODES:
                 raise ValueError(f"Node type not allowed: {type(child).__name__}")
-
+            if isinstance(child, ast.Call):
+                func_name = child.func.id if isinstance(child.func, ast.Name) else None
+                if func_name not in BUILTIN_FUNCTIONS:
+                    raise ValueError(f"Function not allowed: {func_name}")
     def _eval(self, node: ast.AST) -> object:
         self._step_count += 1
         if self._step_count % 8 == 0 or time.monotonic() - self._eval_start > self.timeout:

@@ -6,6 +6,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from src.scripting.engine import ScriptEngine
+from src.scripting.parser import ScriptParser
 from src.device.device_definition import get_device_type, DeviceType
 
 router = APIRouter(prefix="/api")
@@ -38,6 +39,9 @@ class LatencyConfigUpdate(BaseModel):
 class ScriptContent(BaseModel):
     content: str
 
+
+class ScriptValidationRequest(BaseModel):
+    content: str
 
 class SaveLoadRequest(BaseModel):
     name: str = "plc_state.json"
@@ -269,6 +273,15 @@ def save_script(name: str, data: ScriptContent):
     return {"status": "ok"}
 
 
+@router.post("/scripts/validate")
+def validate_script_endpoint(req: ScriptValidationRequest):
+    valid, errors = ScriptParser.validate_content(req.content)
+    return {
+        "valid": valid,
+        "errors": errors,
+        "message": "Script is valid" if valid else (errors[0] if errors else "Validation failed"),
+    }
+
 @router.get("/scripts/{name}/status")
 def get_script_status(name: str, request: Request):
     state = get_state(request)
@@ -299,6 +312,9 @@ async def start_script(name: str, request: Request):
         await existing.stop()
 
     content = path.read_text(encoding="utf-8")
+    valid, errors = ScriptParser.validate_content(content)
+    if not valid:
+        raise HTTPException(400, f"Script validation failed: {errors[0]}")
     scripts = yaml.safe_load(content)
     if not isinstance(scripts, list):
         if isinstance(scripts, dict) and "scripts" in scripts:

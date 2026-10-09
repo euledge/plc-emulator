@@ -18,6 +18,7 @@ const ScriptEditor = {
               <button id="script_new">New</button>
               <button id="script_load">Load</button>
               <button id="script_save">Save</button>
+              <button id="script_validate" class="secondary" data-i18n="script.validate">Validate</button>
               <button id="script_start" class="secondary" data-i18n="script.start">Start</button>
               <button id="script_pause" class="secondary" data-i18n="script.pause">Pause</button>
               <button id="script_stop" class="secondary" data-i18n="script.stop">Stop</button>
@@ -25,6 +26,7 @@ const ScriptEditor = {
             </div>
           </div>
         </div>
+        <div id="script_validation_result" style="margin-bottom:0.5rem;padding:0.4rem 0.8rem;border-radius:4px;display:none;font-family:monospace;font-size:0.85rem;"></div>
         <textarea id="script_editor" placeholder="# YAML script"></textarea>
       </div>
       <div class="panel">
@@ -35,6 +37,7 @@ const ScriptEditor = {
     document.getElementById('script_new').addEventListener('click', () => this.newScript());
     document.getElementById('script_load').addEventListener('click', () => this.loadScript());
     document.getElementById('script_save').addEventListener('click', () => this.saveScript());
+    document.getElementById('script_validate').addEventListener('click', () => this.validateScript());
     document.getElementById('script_start').addEventListener('click', () => this.startScript());
     document.getElementById('script_pause').addEventListener('click', () => this.pauseScript());
     document.getElementById('script_stop').addEventListener('click', () => this.stopScript());
@@ -55,6 +58,8 @@ const ScriptEditor = {
     document.getElementById('script_editor').value = '';
     this.current = null;
     this.setStatus('stopped');
+    const res = document.getElementById('script_validation_result');
+    if (res) res.style.display = 'none';
   },
 
   async loadScript() {
@@ -85,9 +90,44 @@ const ScriptEditor = {
     await this.refreshList();
   },
 
+  async validateScript() {
+    const content = document.getElementById('script_editor').value;
+    const resultEl = document.getElementById('script_validation_result');
+    if (!resultEl) return false;
+    try {
+      const resp = await fetch('/api/scripts/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      const data = await resp.json();
+      resultEl.style.display = 'block';
+      if (data.valid) {
+        resultEl.style.background = 'rgba(78, 204, 163, 0.2)';
+        resultEl.style.color = '#8be6bd';
+        resultEl.style.border = '1px solid #4ecca3';
+        resultEl.textContent = '✓ Script is valid';
+        return true;
+      } else {
+        resultEl.style.background = 'rgba(255, 99, 99, 0.2)';
+        resultEl.style.color = '#ff8a8a';
+        resultEl.style.border = '1px solid #ff6363';
+        resultEl.innerHTML = `✗ Validation failed:<br>${(data.errors || []).join('<br>')}`;
+        return false;
+      }
+    } catch (e) {
+      resultEl.style.display = 'block';
+      resultEl.style.color = '#ff8a8a';
+      resultEl.textContent = `Validation error: ${e.message}`;
+      return false;
+    }
+  },
+
   async startScript() {
     const name = document.getElementById('script_name').value.trim();
     if (!name) return;
+    const valid = await this.validateScript();
+    if (valid === false) return;
     await fetch(`/api/scripts/${encodeURIComponent(name)}/start`, { method: 'POST' });
     await this.refreshStatus();
   },

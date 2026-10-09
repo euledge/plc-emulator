@@ -158,6 +158,26 @@ def test_script_editor_save_and_load(page, server_url):
     assert "periodic" in content
 
 
+def test_script_editor_validate_valid_and_invalid(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='scripts']").click()
+
+    # 1. Valid YAML
+    valid_yaml = "- type: periodic\n  interval_ms: 100\n  actions:\n    - target: D100\n      value: 1\n"
+    page.locator("#script_editor").fill(valid_yaml)
+    page.locator("#script_validate").click()
+    page.wait_for_function("document.getElementById('script_validation_result').textContent.includes('Script is valid')", timeout=5000)
+    result_text = page.locator("#script_validation_result").text_content()
+    assert "Script is valid" in result_text
+
+    # 2. Invalid YAML
+    invalid_yaml = "- type: periodic\n  interval_ms: 100\n  actions:\n    - target: D100\n      expr: '__import__(\\'os\\')'\n"
+    page.locator("#script_editor").fill(invalid_yaml)
+    page.locator("#script_validate").click()
+    page.wait_for_function("document.getElementById('script_validation_result').textContent.includes('Validation failed')", timeout=5000)
+    result_text = page.locator("#script_validation_result").text_content()
+    assert "Validation failed" in result_text
+
 def test_save_and_load_state_from_settings(page, server_url, api):
     page.goto(server_url)
     page.wait_for_selector("#btn_save_state", timeout=5000)
