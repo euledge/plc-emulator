@@ -9,6 +9,7 @@ const CommLog = {
         <div class="btn-row">
           <label><input type="checkbox" id="log_autoscroll" checked> Auto-scroll</label>
           <button id="log_clear" class="secondary">Clear</button>
+          <button id="log_save" class="secondary" data-i18n="log.save">Save Log</button>
         </div>
         <div id="log_container" style="max-height:60vh;overflow:auto;background:#0f3460;padding:0.5rem;border-radius:4px;font-family:monospace;font-size:0.8rem;"></div>
       </div>`;
@@ -16,6 +17,7 @@ const CommLog = {
       this.entries = [];
       document.getElementById('log_container').innerHTML = '';
     });
+    document.getElementById('log_save').addEventListener('click', () => this.saveLog());
     this.connectWs();
   },
 
@@ -43,5 +45,23 @@ const CommLog = {
     if (document.getElementById('log_autoscroll')?.checked) {
       container.scrollTop = container.scrollHeight;
     }
+  },
+
+  saveLog() {
+    const lines = this.entries.map(msg => {
+      const dir = msg.direction === 'tx' ? '→' : '←';
+      const cmdBadge = msg.command ? ` [${msg.command}]` : '';
+      return `[${msg.timestamp}] ${dir}${cmdBadge} ${msg.data}`;
+    });
+    const text = lines.join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comm_log_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 };

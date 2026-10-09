@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import yaml
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict
 from src.scripting.engine import ScriptEngine
 from src.scripting.parser import ScriptParser
@@ -417,3 +418,15 @@ def set_plc_status(update: PlcStatusUpdate, request: Request):
         return {"status": state.device_manager.plc_status}
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@router.get("/comm_log/export")
+def export_comm_log(request: Request):
+    state = get_state(request)
+    lines = []
+    for msg in state.comm_logs:
+        dir_sym = "→" if msg.get("direction") == "tx" else "←"
+        cmd = f" [{msg.get('command')}]" if msg.get("command") else ""
+        lines.append(f"[{msg.get('timestamp')}] {dir_sym}{cmd} {msg.get('data')}")
+    text = "\n".join(lines)
+    return PlainTextResponse(text, headers={"Content-Disposition": 'attachment; filename="comm_log.txt"'})

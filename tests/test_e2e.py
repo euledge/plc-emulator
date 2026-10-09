@@ -67,6 +67,14 @@ def test_switch_to_log(page, server_url):
     assert log.is_visible()
 
 
+def test_comm_log_save_button(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='log']").click()
+    page.wait_for_selector("#log_save", timeout=5000)
+    assert page.locator("#log_save").is_visible()
+    page.locator("#log_save").click()
+    assert page.locator("#log_container").is_visible()
+
 def test_switch_to_scripts(page, server_url):
     page.goto(server_url)
     page.locator(".nav-link[data-page='scripts']").click()
