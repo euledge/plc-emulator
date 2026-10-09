@@ -1,7 +1,7 @@
 const DeviceMonitor = {
   ws: null,
   devices: [],
-  currentTab: 'D',
+  currentTab: 'ALL',
 
   async init() {
     const container = document.getElementById('page-monitor');
@@ -9,7 +9,8 @@ const DeviceMonitor = {
       <div class="panel">
         <h3 data-i18n="nav.monitor">Device Monitor</h3>
         <div class="device-tabs" id="device_tabs" style="display:flex;gap:0.4rem;margin-bottom:1rem;flex-wrap:wrap;">
-          <button class="device-tab active" data-dev="D">D</button>
+          <button class="device-tab active" data-dev="ALL" data-i18n="monitor.tab_all">ALL</button>
+          <button class="device-tab" data-dev="D">D</button>
           <button class="device-tab" data-dev="W">W</button>
           <button class="device-tab" data-dev="M">M</button>
           <button class="device-tab" data-dev="X">X</button>
@@ -27,6 +28,10 @@ const DeviceMonitor = {
           <div class="form-group">
             <label data-i18n="monitor.address">Address</label>
             <input type="number" id="mon_address" value="0">
+          </div>
+          <div class="form-group">
+            <label data-i18n="monitor.points">Points</label>
+            <input type="number" id="mon_points" value="1" min="1" max="1000">
           </div>
           <div class="form-group">
             <label data-i18n="monitor.format">Format</label>
@@ -59,7 +64,17 @@ const DeviceMonitor = {
       </div>`;
     document.getElementById('mon_add').addEventListener('click', () => this.addDevice());
     document.getElementById('mon_clear').addEventListener('click', () => this.clearAll());
-    document.getElementById('mon_device').addEventListener('change', e => this.selectTab(e.target.value));
+    document.getElementById('mon_device').addEventListener('change', e => {
+      if (this.currentTab !== 'ALL') {
+        this.selectTab(e.target.value);
+      }
+    });
+    document.getElementById('mon_address').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this.addDevice();
+    });
+    document.getElementById('mon_points').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this.addDevice();
+    });
     document.querySelectorAll('.device-tab').forEach(btn => {
       btn.addEventListener('click', () => this.selectTab(btn.dataset.dev));
     });
@@ -69,7 +84,7 @@ const DeviceMonitor = {
   selectTab(dev) {
     this.currentTab = dev;
     const monDev = document.getElementById('mon_device');
-    if (monDev) monDev.value = dev;
+    if (monDev && dev !== 'ALL') monDev.value = dev;
     document.querySelectorAll('.device-tab').forEach(b => {
       if (b.dataset.dev === dev) b.classList.add('active');
       else b.classList.remove('active');
@@ -135,19 +150,31 @@ const DeviceMonitor = {
 
   addDevice() {
     const dev = document.getElementById('mon_device').value;
-    const addr = parseInt(document.getElementById('mon_address').value);
+    const startAddr = parseInt(document.getElementById('mon_address').value) || 0;
+    const pointsInput = document.getElementById('mon_points');
+    const points = pointsInput ? Math.max(1, parseInt(pointsInput.value) || 1) : 1;
     const fmt = document.getElementById('mon_format').value;
-    this.devices.push({ device: dev, address: addr, format: fmt, value: null });
-    if (dev !== this.currentTab) {
+
+    for (let i = 0; i < points; i++) {
+      const addr = startAddr + i;
+      const existing = this.devices.find(d => d.device === dev && d.address === addr);
+      if (existing) {
+        existing.format = fmt;
+      } else {
+        this.devices.push({ device: dev, address: addr, format: fmt, value: null });
+      }
+      if (fmt === 'FLOAT' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr + 1 }));
+      }
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr }));
+      }
+    }
+
+    if (this.currentTab !== 'ALL' && dev !== this.currentTab) {
       this.selectTab(dev);
     } else {
       this.renderTable();
-    }
-    if (fmt === 'FLOAT' && this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr + 1 }));
-    }
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr }));
     }
   },
 
@@ -155,10 +182,11 @@ const DeviceMonitor = {
     const tbody = document.getElementById('mon_table');
     const filtered = this.devices
       .map((d, i) => ({ ...d, originalIndex: i }))
-      .filter(d => d.device === this.currentTab);
+      .filter(d => this.currentTab === 'ALL' || d.device === this.currentTab);
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#888;padding:1rem;">No ${this.currentTab} devices monitored. Add one above.</td></tr>`;
+      const tabLabel = this.currentTab === 'ALL' ? '' : `${this.currentTab} `;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#888;padding:1rem;">No ${tabLabel}devices monitored. Add one above.</td></tr>`;
       return;
     }
 

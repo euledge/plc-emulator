@@ -24,6 +24,8 @@
   "monitor.address": "アドレス",
   "monitor.value": "値",
   "monitor.format": "表示形式",
+  "monitor.points": "点数",
+  "monitor.tab_all": "すべて",
   "log.timestamp": "時刻",
   "log.direction": "方向",
   "log.data": "データ",

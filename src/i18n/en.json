@@ -24,6 +24,8 @@
   "monitor.address": "Address",
   "monitor.value": "Value",
   "monitor.format": "Display Format",
+  "monitor.points": "Points",
+  "monitor.tab_all": "ALL",
   "log.timestamp": "Time",
   "log.direction": "Direction",
   "log.data": "Data",
