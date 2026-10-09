@@ -230,26 +230,77 @@ def save_script(name: str, data: ScriptContent):
     return {"status": "ok"}
 
 
+@router.get("/scripts/{name}/status")
+def get_script_status(name: str, request: Request):
+    state = get_state(request)
+    engine = state.script_engines.get(name)
+    if engine is None or not engine.running:
+        status = "stopped"
+    elif engine.paused:
+        status = "paused"
+    else:
+        status = "running"
+    return {"name": name, "status": status}
+
+
 @router.post("/scripts/{name}/start")
 async def start_script(name: str, request: Request):
     state = get_state(request)
     path = SCRIPTS_DIR / name
     if not path.exists():
         raise HTTPException(404, "Script not found")
+
+    existing = state.script_engines.get(name)
+    if existing is not None:
+        if existing.running and existing.paused:
+            existing.resume()
+            return {"status": "running"}
+        if existing.running:
+            return {"status": "running"}
+        await existing.stop()
+
     content = path.read_text(encoding="utf-8")
     scripts = yaml.safe_load(content)
     if not isinstance(scripts, list):
-        scripts = [scripts]
+        if isinstance(scripts, dict) and "scripts" in scripts:
+            scripts = scripts["scripts"]
+        else:
+            scripts = [scripts]
+
     engine = ScriptEngine(state.device_manager)
     engine.load_scripts(scripts)
-    asyncio.create_task(engine.start())
-    return {"status": "started"}
+    await engine.start()
+    state.script_engines[name] = engine
+    return {"status": "running"}
+
+
+@router.post("/scripts/{name}/pause")
+async def pause_script(name: str, request: Request):
+    state = get_state(request)
+    engine = state.script_engines.get(name)
+    if engine is None or not engine.running:
+        raise HTTPException(400, "Script is not running")
+    engine.pause()
+    return {"status": "paused"}
+
+
+@router.post("/scripts/{name}/resume")
+async def resume_script(name: str, request: Request):
+    state = get_state(request)
+    engine = state.script_engines.get(name)
+    if engine is None or not engine.running:
+        raise HTTPException(400, "Script is not running")
+    engine.resume()
+    return {"status": "running"}
 
 
 @router.post("/scripts/{name}/stop")
 async def stop_script(name: str, request: Request):
+    state = get_state(request)
+    engine = state.script_engines.pop(name, None)
+    if engine is not None:
+        await engine.stop()
     return {"status": "stopped"}
-
 
 @router.post("/save")
 def save_state(request: Request, data: SaveLoadRequest = SaveLoadRequest()):

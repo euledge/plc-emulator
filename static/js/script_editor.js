@@ -19,7 +19,9 @@ const ScriptEditor = {
               <button id="script_load">Load</button>
               <button id="script_save">Save</button>
               <button id="script_start" class="secondary" data-i18n="script.start">Start</button>
+              <button id="script_pause" class="secondary" data-i18n="script.pause">Pause</button>
               <button id="script_stop" class="secondary" data-i18n="script.stop">Stop</button>
+              <span id="script_status" style="margin-left:auto;padding:0.3rem 0.6rem;border-radius:4px;font-weight:bold;color:#888;">stopped</span>
             </div>
           </div>
         </div>
@@ -34,8 +36,8 @@ const ScriptEditor = {
     document.getElementById('script_load').addEventListener('click', () => this.loadScript());
     document.getElementById('script_save').addEventListener('click', () => this.saveScript());
     document.getElementById('script_start').addEventListener('click', () => this.startScript());
+    document.getElementById('script_pause').addEventListener('click', () => this.pauseScript());
     document.getElementById('script_stop').addEventListener('click', () => this.stopScript());
-
     await this.refreshList();
   },
 
@@ -52,6 +54,7 @@ const ScriptEditor = {
     document.getElementById('script_name').value = '';
     document.getElementById('script_editor').value = '';
     this.current = null;
+    this.setStatus('stopped');
   },
 
   async loadScript() {
@@ -62,8 +65,8 @@ const ScriptEditor = {
     const data = await resp.json();
     document.getElementById('script_editor').value = data.content;
     this.current = name;
+    await this.refreshStatus();
   },
-
   loadByName(name) {
     document.getElementById('script_name').value = name;
     this.loadScript();
@@ -86,11 +89,44 @@ const ScriptEditor = {
     const name = document.getElementById('script_name').value.trim();
     if (!name) return;
     await fetch(`/api/scripts/${encodeURIComponent(name)}/start`, { method: 'POST' });
+    await this.refreshStatus();
+  },
+
+  async pauseScript() {
+    const name = document.getElementById('script_name').value.trim();
+    if (!name) return;
+    await fetch(`/api/scripts/${encodeURIComponent(name)}/pause`, { method: 'POST' });
+    await this.refreshStatus();
   },
 
   async stopScript() {
     const name = document.getElementById('script_name').value.trim();
     if (!name) return;
     await fetch(`/api/scripts/${encodeURIComponent(name)}/stop`, { method: 'POST' });
+    await this.refreshStatus();
+  },
+
+  setStatus(status) {
+    const statusEl = document.getElementById('script_status');
+    if (!statusEl) return;
+    statusEl.textContent = status;
+    if (status === 'running') statusEl.style.color = '#8be6bd';
+    else if (status === 'paused') statusEl.style.color = '#ffcc00';
+    else statusEl.style.color = '#888';
+  },
+
+  async refreshStatus() {
+    const name = document.getElementById('script_name').value.trim();
+    if (!name) {
+      this.setStatus('stopped');
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/scripts/${encodeURIComponent(name)}/status`);
+      if (resp.ok) {
+        const data = await resp.json();
+        this.setStatus(data.status);
+      }
+    } catch (e) {}
   }
 };

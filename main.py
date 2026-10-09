@@ -207,6 +207,11 @@ class PLCEmulatorApp:
                 except BaseException as e:
                     logger.error("Error stopping web server: %s", e)
                     errors.append(e)
+                try:
+                    await self.state.stop_all_scripts()
+                except BaseException as e:
+                    logger.error("Error stopping script engines: %s", e)
+                    errors.append(e)
 
                 try:
                     await self.stop_plc_server()

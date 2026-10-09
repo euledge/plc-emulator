@@ -50,11 +50,20 @@ class AppState:
         self.persistence = PersistenceManager(self.device_manager)
         self.plc_server: TcpServer | UdpServer | None = None
         self.comm_logs: deque[dict] = deque(maxlen=100)
+        self.script_engines: dict[str, Any] = {}
         try:
             self._loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
         except RuntimeError:
             self._loop = None
         self.device_manager.on_change(self._on_device_change)
+
+    async def stop_all_scripts(self) -> None:
+        for engine in list(self.script_engines.values()):
+            try:
+                await engine.stop()
+            except Exception:
+                pass
+        self.script_engines.clear()
 
     def _on_device_change(self, device_type: str, address: int, value: int | bool) -> None:
         msg = {

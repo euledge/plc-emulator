@@ -35,7 +35,7 @@
 - [x] `src/scripting/builtins.py` 組み込み関数
 - [x] `src/scripting/evaluator.py` 安全な式評価器
 - [x] `src/scripting/parser.py` YAML DSLパーサー
-- [x] `src/scripting/engine.py` スクリプト実行エンジン
+- [x] `src/scripting/engine.py` スクリプト実行エンジン（開始・停止・一時停止・状態管理対応）
 - [x] サンプルスクリプト作成
 - [x] ユニットテスト追加
 
@@ -49,7 +49,7 @@
 - [x] `static/js/device_monitor.js` デバイスモニタ
 - [x] `static/js/comm_log.js` 通信ログ
 - [x] `static/js/settings.js` 設定画面
-- [x] `static/js/script_editor.js` スクリプトエディタ
+- [x] `static/js/script_editor.js` スクリプトエディタ（開始/停止/一時停止ボタン・ステータス表示対応）
 - [x] `static/js/i18n.js` 多言語対応
 - [x] `src/i18n/ja.json` 日本語翻訳
 - [x] `src/i18n/en.json` 英語翻訳
