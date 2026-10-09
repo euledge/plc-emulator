@@ -27,6 +27,60 @@ def sanitize_comm_log(packet: bytes) -> str:
             masked_payload = " ".join(["**"] * (len(packet) - 14))
             return f"{header_hex} {masked_payload}".strip()
     return packet.hex(" ").upper()
+COMMAND_NAMES_3E = {
+    0x0401: "Batch Read",
+    0x1401: "Batch Write",
+    0x0403: "Random Read",
+    0x1402: "Random Write",
+    0x0801: "Monitor Register",
+    0x0802: "Monitor Execute",
+    0x0101: "CPU Type Read",
+    0x1001: "Remote RUN",
+    0x1002: "Remote STOP",
+    0x0619: "Loopback Test",
+    0x1630: "Password Unlock",
+    0x1631: "Password Lock",
+}
+
+COMMAND_NAMES_1E = {
+    0x01: "Batch Read (1E)",
+    0x03: "Batch Write (1E)",
+}
+
+
+def resolve_command_name(direction: str, packet: bytes) -> str:
+    if direction == "rx":
+        if len(packet) >= 28 and packet[:4].upper() == b"5000":
+            try:
+                cmd = int(packet[20:24].decode("ascii"), 16)
+                name = COMMAND_NAMES_3E.get(cmd)
+                if name:
+                    return f"{name} ({cmd:04X})"
+            except (ValueError, UnicodeDecodeError):
+                pass
+        elif len(packet) >= 12 and packet[:2] in (b"\x50\x00", b"\x54\x00"):
+            try:
+                cmd = struct.unpack_from("<H", packet, 10)[0]
+                name = COMMAND_NAMES_3E.get(cmd)
+                if name:
+                    return f"{name} ({cmd:04X})"
+            except struct.error:
+                pass
+        elif len(packet) >= 6 and packet[0] in COMMAND_NAMES_1E:
+            name = COMMAND_NAMES_1E[packet[0]]
+            return f"{name} ({packet[0]:02X})"
+    elif direction == "tx":
+        if len(packet) >= 4 and packet[:4].upper() == b"D000":
+            return "Response (3E ASCII)"
+        elif len(packet) >= 2 and packet[:2] == b"\xD0\x00":
+            return "Response (3E)"
+        elif len(packet) >= 2 and packet[:2] == b"\xD4\x00":
+            return "Response (4E)"
+        elif len(packet) >= 1 and packet[0] in (0x81, 0x83):
+            cmd = packet[0] & 0x7F
+            name = COMMAND_NAMES_1E.get(cmd, "1E")
+            return f"Response ({name})"
+    return ""
 
 
 class AppState:
@@ -97,6 +151,7 @@ class AppState:
             "type": "comm_log",
             "timestamp": timestamp,
             "direction": direction,
+            "command": resolve_command_name(direction, packet),
             "data": data_hex,
         }
         self.comm_logs.append(msg)

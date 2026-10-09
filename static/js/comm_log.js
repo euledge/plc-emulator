@@ -37,7 +37,8 @@ const CommLog = {
     const cls = msg.direction === 'tx' ? 'tx' : 'rx';
     const div = document.createElement('div');
     div.className = `log-entry ${cls}`;
-    div.textContent = `[${msg.timestamp}] ${dir} ${msg.data}`;
+    const cmdBadge = msg.command ? ` [${msg.command}]` : '';
+    div.textContent = `[${msg.timestamp}] ${dir}${cmdBadge} ${msg.data}`;
     container.appendChild(div);
     if (document.getElementById('log_autoscroll')?.checked) {
       container.scrollTop = container.scrollHeight;
