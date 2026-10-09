@@ -24,7 +24,8 @@ class DeviceManager:
         self._plc_model = plc_model
         self._callbacks: list[callable] = []
         self.plc_status: str = "RUN"
-
+        self._remote_password: str = ""
+        self._is_locked: bool = False
     @property
     def plc_model(self) -> PlcModel | None:
         return self._plc_model
@@ -33,6 +34,41 @@ class DeviceManager:
     def plc_model(self, model: PlcModel | None) -> None:
         self._plc_model = model
 
+
+    @property
+    def remote_password(self) -> str:
+        return self._remote_password
+
+    @remote_password.setter
+    def remote_password(self, pwd: str) -> None:
+        self._remote_password = pwd or ""
+        self._is_locked = bool(self._remote_password)
+
+    @property
+    def is_locked(self) -> bool:
+        return self._is_locked
+
+    def unlock(self, pwd: str | bytes) -> bool:
+        if isinstance(pwd, bytes):
+            try:
+                pwd_str = pwd.decode("ascii", errors="replace").strip("\x00 \r\n")
+            except Exception:
+                pwd_str = ""
+        else:
+            pwd_str = str(pwd).strip("\x00 \r\n")
+
+        if not self._remote_password or pwd_str == self._remote_password:
+            self._is_locked = False
+            return True
+        return False
+
+    def lock(self) -> None:
+        if self._remote_password:
+            self._is_locked = True
+
+    def reset_connection_lock(self) -> None:
+        if self._remote_password:
+            self._is_locked = True
     @property
     def is_running(self) -> bool:
         return self.plc_status == "RUN"

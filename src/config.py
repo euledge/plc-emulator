@@ -9,10 +9,10 @@ class ConfigManager:
     data_format: str = "binary"
     plc_model: str = "Q03UDE"
     error_response_enabled: bool = True
+    remote_password: str = ""
 
     latency_mode: str = "none"
     latency_params: dict = field(default_factory=dict)
-
     def to_dict(self) -> dict:
         return {
             "protocol": self.protocol,
@@ -23,13 +23,13 @@ class ConfigManager:
             "error_response_enabled": self.error_response_enabled,
             "latency_mode": self.latency_mode,
             "latency_params": dict(self.latency_params),
+            "remote_password": self.remote_password,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "ConfigManager":
         cfg = cls()
         for key in ("protocol", "transport", "port", "data_format", "plc_model",
-                     "error_response_enabled", "latency_mode", "latency_params"):
-            if key in data:
+                     "error_response_enabled", "latency_mode", "latency_params", "remote_password"):
                 setattr(cfg, key, data[key])
         return cfg

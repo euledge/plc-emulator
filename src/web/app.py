@@ -94,6 +94,8 @@ class AppState:
         self.config_lock = asyncio.Lock()
         model = PLC_MODELS.get(self.config.plc_model)
         self.device_manager = device_manager or DeviceManager(plc_model=model)
+        if self.config.remote_password:
+            self.device_manager.remote_password = self.config.remote_password
         if latency is None:
             self.latency = LatencyEmulator()
             self.latency.mode = self.config.latency_mode

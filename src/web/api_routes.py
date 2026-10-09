@@ -26,7 +26,7 @@ class ConfigUpdate(BaseModel):
     error_response_enabled: bool | None = None
     latency_mode: str | None = None
     latency_params: dict | None = None
-
+    remote_password: str | None = None
 
 class DeviceValueUpdate(BaseModel):
     value: int
@@ -187,7 +187,8 @@ async def apply_config_update(state, update: ConfigUpdate):
                 pass
     if update.plc_model is not None:
         state.device_manager.plc_model = model
-
+    if update.remote_password is not None:
+        state.device_manager.remote_password = update.remote_password
     if "latency_mode" in changes:
         state.latency.mode = changes["latency_mode"]
     if "latency_params" in changes:

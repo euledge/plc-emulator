@@ -138,6 +138,7 @@ class TcpServer:
                 await writer.wait_closed()
                 return
             self._active_writer = writer
+            self.device_manager.reset_connection_lock()
         buf = bytearray()
 
         try:
@@ -164,6 +165,7 @@ class TcpServer:
             async with self._client_lock:
                 if self._active_writer == writer:
                     self._active_writer = None
+            self.device_manager.reset_connection_lock()
             try:
                 writer.close()
                 await writer.wait_closed()

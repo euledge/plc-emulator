@@ -16,6 +16,8 @@ class CommandProcessor:
         self._monitor_devices: list[dict] = []
 
     def execute(self, command: int, subcommand: int, data: bytes) -> CommandResult:
+        if self.device_manager.is_locked and command in (0x1401, 0x1402, 0x1001, 0x1002):
+            return CommandResult(success=False, error_code=ErrorCode.REMOTE_PASSWORD_LOCKED)
         if command == 0x0401:
             return self._batch_read(data, subcommand=subcommand)
         elif command == 0x1401:
@@ -36,10 +38,16 @@ class CommandProcessor:
             return self._monitor_register(data)
         elif command == 0x0802:
             return self._monitor_execute()
+        elif command == 0x1630:
+            return self._remote_password_unlock(data)
+        elif command == 0x1631:
+            return self._remote_password_lock()
         else:
             return CommandResult(success=False, error_code=ErrorCode.UNSUPPORTED_COMMAND)
 
     def execute_request(self, req: ParsedRequest) -> CommandResult:
+        if self.device_manager.is_locked and req.command in (0x1401, 0x1402, 0x1001, 0x1002):
+            return CommandResult(success=False, error_code=ErrorCode.REMOTE_PASSWORD_LOCKED)
         if req.command == 0x0401:
             if not req.devices:
                 return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
@@ -152,6 +160,10 @@ class CommandProcessor:
             return self._monitor_register(req.data)
         elif req.command == 0x0802:
             return self._monitor_execute()
+        elif req.command == 0x1630:
+            return self._remote_password_unlock(req.data)
+        elif req.command == 0x1631:
+            return self._remote_password_lock()
         else:
             return CommandResult(success=False, error_code=ErrorCode.UNSUPPORTED_COMMAND)
     def _batch_read(self, data: bytes, subcommand: int = 0x0000) -> CommandResult:
@@ -393,3 +405,12 @@ class CommandProcessor:
             return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
         except (ValueError, IndexError):
             return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
+
+    def _remote_password_unlock(self, data: bytes) -> CommandResult:
+        if self.device_manager.unlock(data):
+            return CommandResult(success=True, error_code=ErrorCode.NORMAL, data=b"")
+        return CommandResult(success=False, error_code=ErrorCode.REMOTE_PASSWORD_MISMATCH)
+
+    def _remote_password_lock(self) -> CommandResult:
+        self.device_manager.lock()
+        return CommandResult(success=True, error_code=ErrorCode.NORMAL, data=b"")
