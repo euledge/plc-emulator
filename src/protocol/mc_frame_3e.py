@@ -51,7 +51,11 @@ class McFrame3E(ProtocolHandler):
                 "count": count,
             })
             if req.command == 0x1401:
-                req.data = device_data[6:6 + count * 2]
+                if req.subcommand in (0x0001, 0x0003):
+                    byte_count = (count + 1) // 2
+                    req.data = device_data[6:6 + byte_count]
+                else:
+                    req.data = device_data[6:6 + count * 2]
             else:
                 req.data = b""
         return req

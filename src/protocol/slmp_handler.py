@@ -37,8 +37,11 @@ class SlmpHandler(McFrame3E):
                 "count": count,
             })
             if req.command == 0x1401:
-                req.data = cmd_data[12:12 + count * 2]
-
+                if req.subcommand in (0x0001, 0x0003):
+                    byte_count = (count + 1) // 2
+                    req.data = cmd_data[12:12 + byte_count]
+                else:
+                    req.data = cmd_data[12:12 + count * 2]
         return req
 
     def build_response(self, parsed: ParsedRequest | None, result: CommandResult) -> bytes:

@@ -12,9 +12,9 @@ class CommandProcessor:
 
     def execute(self, command: int, subcommand: int, data: bytes) -> CommandResult:
         if command == 0x0401:
-            return self._batch_read(data)
+            return self._batch_read(data, subcommand=subcommand)
         elif command == 0x1401:
-            return self._batch_write(data)
+            return self._batch_write(data, subcommand=subcommand)
         elif command == 0x0101:
             return self._cpu_type_read()
         elif command == 0x0619:
@@ -35,12 +35,28 @@ class CommandProcessor:
             if not req.devices:
                 return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
             dev = req.devices[0]
+            dev_type = dev["type"]
+            start_addr = dev["address"]
+            count = dev["count"]
+            is_bit = req.subcommand in (0x0001, 0x0003)
             try:
-                values = self.device_manager.batch_read(dev["type"], dev["address"], dev["count"])
-                return CommandResult(
-                    success=True,
-                    data=struct.pack(f"<{len(values)}H", *values),
-                )
+                if is_bit:
+                    bit_values = [
+                        1 if self.device_manager.read_bit(dev_type, start_addr + i) else 0
+                        for i in range(count)
+                    ]
+                    packed = bytearray()
+                    for i in range(0, count, 2):
+                        b0 = bit_values[i]
+                        b1 = bit_values[i + 1] if i + 1 < count else 0
+                        packed.append(((b0 & 1) << 4) | (b1 & 1))
+                    return CommandResult(success=True, data=bytes(packed))
+                else:
+                    values = self.device_manager.batch_read(dev_type, start_addr, count)
+                    return CommandResult(
+                        success=True,
+                        data=struct.pack(f"<{len(values)}H", *values),
+                    )
             except (ValueError, IndexError):
                 return CommandResult(
                     success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
@@ -49,20 +65,40 @@ class CommandProcessor:
             if not req.devices:
                 return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
             dev = req.devices[0]
+            dev_type = dev["type"]
+            start_addr = dev["address"]
             count = dev["count"]
-            if len(req.data) != count * 2:
-                return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
-            try:
-                values = [
-                    struct.unpack_from("<H", req.data, i)[0]
-                    for i in range(0, len(req.data), 2)
-                ]
-                self.device_manager.batch_write(dev["type"], dev["address"], values)
-                return CommandResult(success=True)
-            except (ValueError, IndexError):
-                return CommandResult(
-                    success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
-                )
+            is_bit = req.subcommand in (0x0001, 0x0003)
+            if is_bit:
+                expected_len = (count + 1) // 2
+                if len(req.data) != expected_len:
+                    return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                try:
+                    for i in range(count):
+                        byte_idx = i // 2
+                        is_high = (i % 2 == 0)
+                        byte_val = req.data[byte_idx]
+                        bit_val = bool((byte_val >> 4) & 1 if is_high else (byte_val & 1))
+                        self.device_manager.write_bit(dev_type, start_addr + i, bit_val)
+                    return CommandResult(success=True)
+                except (ValueError, IndexError):
+                    return CommandResult(
+                        success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
+                    )
+            else:
+                if len(req.data) != count * 2:
+                    return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                try:
+                    values = [
+                        struct.unpack_from("<H", req.data, i)[0]
+                        for i in range(0, len(req.data), 2)
+                    ]
+                    self.device_manager.batch_write(dev_type, start_addr, values)
+                    return CommandResult(success=True)
+                except (ValueError, IndexError):
+                    return CommandResult(
+                        success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
+                    )
         elif req.command == 0x0101:
             return self._cpu_type_read()
         elif req.command == 0x0619:
@@ -77,36 +113,63 @@ class CommandProcessor:
             return self._monitor_execute()
         else:
             return CommandResult(success=False, error_code=ErrorCode.UNSUPPORTED_COMMAND)
-    def _batch_read(self, data: bytes) -> CommandResult:
+    def _batch_read(self, data: bytes, subcommand: int = 0x0000) -> CommandResult:
         try:
             dev_type, dev_addr = parse_device_mc(data[:4])
             count = struct.unpack_from("<H", data, 4)[0]
-            values = self.device_manager.batch_read(dev_type, dev_addr, count)
-            return CommandResult(
-                success=True,
-                data=struct.pack(f"<{len(values)}H", *values),
-            )
+            is_bit = subcommand in (0x0001, 0x0003)
+            if is_bit:
+                bit_values = [
+                    1 if self.device_manager.read_bit(dev_type, dev_addr + i) else 0
+                    for i in range(count)
+                ]
+                packed = bytearray()
+                for i in range(0, count, 2):
+                    b0 = bit_values[i]
+                    b1 = bit_values[i + 1] if i + 1 < count else 0
+                    packed.append(((b0 & 1) << 4) | (b1 & 1))
+                return CommandResult(success=True, data=bytes(packed))
+            else:
+                values = self.device_manager.batch_read(dev_type, dev_addr, count)
+                return CommandResult(
+                    success=True,
+                    data=struct.pack(f"<{len(values)}H", *values),
+                )
         except (ValueError, IndexError) as e:
             return CommandResult(
                 success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
             )
 
-    def _batch_write(self, data: bytes) -> CommandResult:
+    def _batch_write(self, data: bytes, subcommand: int = 0x0000) -> CommandResult:
         if len(data) < 6:
             return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
 
         try:
             dev_type, dev_addr = parse_device_mc(data[:4])
             count = struct.unpack_from("<H", data, 4)[0]
-            if len(data) != 6 + count * 2:
-                return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
-            values_data = data[6:6 + count * 2]
-            values = [
-                struct.unpack_from("<H", values_data, i)[0]
-                for i in range(0, len(values_data), 2)
-            ]
-            self.device_manager.batch_write(dev_type, dev_addr, values)
-            return CommandResult(success=True)
+            is_bit = subcommand in (0x0001, 0x0003)
+            if is_bit:
+                expected_len = (count + 1) // 2
+                if len(data) != 6 + expected_len:
+                    return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                values_data = data[6:6 + expected_len]
+                for i in range(count):
+                    byte_idx = i // 2
+                    is_high = (i % 2 == 0)
+                    byte_val = values_data[byte_idx]
+                    bit_val = bool((byte_val >> 4) & 1 if is_high else (byte_val & 1))
+                    self.device_manager.write_bit(dev_type, dev_addr + i, bit_val)
+                return CommandResult(success=True)
+            else:
+                if len(data) != 6 + count * 2:
+                    return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                values_data = data[6:6 + count * 2]
+                values = [
+                    struct.unpack_from("<H", values_data, i)[0]
+                    for i in range(0, len(values_data), 2)
+                ]
+                self.device_manager.batch_write(dev_type, dev_addr, values)
+                return CommandResult(success=True)
         except (ValueError, IndexError) as e:
             return CommandResult(
                 success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
