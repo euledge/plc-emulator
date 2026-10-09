@@ -281,3 +281,22 @@ def test_monitor_add_device_displayed(page, server_url):
     assert "D" in content
     assert "0" in content
     assert "---" in content
+
+
+def test_script_editor_syntax_highlight_and_line_numbers(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='scripts']").click()
+    page.wait_for_selector("#script_editor", timeout=5000)
+
+    sample_yaml = "# Periodic counter script\n- type: periodic\n  interval_ms: 500\n  target: 'D100'\n  value: 42\n"
+    page.locator("#script_editor").fill(sample_yaml)
+    page.locator("#script_editor").dispatch_event("input")
+
+    lines_gutter = page.locator("#editor_lines").text_content()
+    assert lines_gutter == "1\n2\n3\n4\n5\n6"
+
+    highlight_html = page.locator("#editor_highlight").inner_html()
+    assert "Periodic counter script" in highlight_html
+    assert "color:#6c757d" in highlight_html
+    assert "color:#4fc3f7" in highlight_html
+    assert "color:#f06292" in highlight_html
