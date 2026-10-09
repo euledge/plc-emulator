@@ -2,7 +2,7 @@ import asyncio
 import logging
 import struct
 from typing import Callable
-from src.device.device_manager import DeviceManager
+from src.device.device_manager import DeviceManager, DeviceSpecificationError
 from src.protocol.base import ProtocolHandler, CommandResult, ParsedRequest
 from src.protocol.mc_frame_3e import McFrame3E
 from src.protocol.command_processor import CommandProcessor
@@ -137,6 +137,12 @@ class UdpServer:
                 )
             else:
                 result = self.command_processor.execute_request(req)
+        except DeviceSpecificationError as e:
+            logger.warning("Device specification error from %s: %s", addr, e)
+            result = CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+            is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
+            acc = (data[4:12] if len(data) >= 12 else b"00000000") if is_ascii else (data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+            req = ParsedRequest(access_path=acc)
         except Exception as e:
             logger.warning("Error parsing/processing datagram from %s: %s", addr, e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)

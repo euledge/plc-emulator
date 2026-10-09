@@ -258,12 +258,12 @@ async def test_out_of_range_and_short_requests_fail_correctly():
             resp = await asyncio.wait_for(reader.read(1024), timeout=2.0)
             assert struct.unpack_from("<H", resp, 8)[0] == 0xC061  # DATA_LENGTH_MISMATCH
 
-            # 2. Out-of-range address on Q03UDE (D max is 12287, requesting D12288)
+            # 2. Out-of-range address on Q03UDE (D max is 12287, requesting D12288) -> 0xC051
             oob_req = make_random_read_req(words=[(DeviceCode3E.D, 12288)], dwords=[])
             writer.write(oob_req)
             await writer.drain()
             resp = await asyncio.wait_for(reader.read(1024), timeout=2.0)
-            assert struct.unpack_from("<H", resp, 8)[0] == 0xC058  # DEVICE_ADDRESS_INVALID
+            assert struct.unpack_from("<H", resp, 8)[0] == 0xC051  # ADDRESS_RANGE_EXCEEDED
 
             # 3. Dword crossing boundary: D12287 requires D12287 (low) and D12288 (high)
             # D12288 is out of range, so dword read at D12287 must fail!

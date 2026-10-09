@@ -1,6 +1,7 @@
 import struct
 from src.protocol.base import ProtocolHandler, ParsedRequest, CommandResult
 from src.protocol.constants import DeviceCode3E, ErrorCode, DEVICE_CODE_TO_NAME_3E
+from src.device.device_manager import DeviceSpecificationError
 
 DECIMAL_DEVICES = {"D", "M", "L", "F", "V", "S", "SM", "SD", "TN", "CN", "TS", "TC", "CS", "CC"}
 
@@ -14,9 +15,9 @@ def parse_device_ascii(dev_str: str, addr_str: str) -> tuple[str, int]:
             code = int(dev_str, 16)
             dev_type = DEVICE_CODE_TO_NAME_3E.get(code)
             if not dev_type:
-                raise ValueError(f"Unknown device code: {dev_str}")
+                raise DeviceSpecificationError(f"Unknown device code: {dev_str}")
         except ValueError:
-            raise ValueError(f"Unknown device name: {dev_str}")
+            raise DeviceSpecificationError(f"Unknown device name: {dev_str}")
 
     base = 10 if dev_type in DECIMAL_DEVICES else 16
     try:

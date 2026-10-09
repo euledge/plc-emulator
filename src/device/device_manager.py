@@ -2,6 +2,21 @@ from threading import Lock
 from src.device.plc_models import PlcModel
 
 
+class DeviceSpecificationError(ValueError):
+    """Unknown device or invalid point count."""
+    pass
+
+
+class AddressRangeExceededError(ValueError):
+    """Start address exceeds the model range."""
+    pass
+
+
+class DeviceAddressInvalidError(ValueError):
+    """End address exceeds the model range."""
+    pass
+
+
 class DeviceManager:
     def __init__(self, plc_model: PlcModel | None = None) -> None:
         self._words: dict[str, list[int]] = {}
@@ -41,18 +56,34 @@ class DeviceManager:
         for cb in self._callbacks:
             cb(device_type, address, value)
 
-    def _check_range(self, device_type: str, address: int) -> None:
+    def _check_start_range(self, device_type: str, address: int) -> None:
         if self._plc_model is None:
             return
         rng = self._plc_model.device_range(device_type)
         if rng is None:
-            return
+            raise DeviceSpecificationError(f"Unknown device type: {device_type}")
         lo, hi = rng
         if not (lo <= address <= hi):
-            raise ValueError(
-                f"Device {device_type}{address} out of range "
+            raise AddressRangeExceededError(
+                f"Device {device_type}{address} start address out of range "
                 f"({lo}-{hi}) for {self._plc_model.name}"
             )
+
+    def _check_end_range(self, device_type: str, address: int) -> None:
+        if self._plc_model is None:
+            return
+        rng = self._plc_model.device_range(device_type)
+        if rng is None:
+            raise DeviceSpecificationError(f"Unknown device type: {device_type}")
+        lo, hi = rng
+        if not (lo <= address <= hi):
+            raise DeviceAddressInvalidError(
+                f"Device {device_type}{address} end address out of range "
+                f"({lo}-{hi}) for {self._plc_model.name}"
+            )
+
+    def _check_range(self, device_type: str, address: int) -> None:
+        self._check_start_range(device_type, address)
 
     def _ensure_word(self, device_type: str, address: int) -> None:
         if device_type not in self._words:
@@ -97,9 +128,11 @@ class DeviceManager:
         self._notify(device_type, address, value)
 
     def batch_read(self, device_type: str, start: int, count: int) -> list[int]:
+        if count <= 0:
+            raise DeviceSpecificationError("Point count must be greater than 0")
         end = start + count - 1
-        self._check_range(device_type, start)
-        self._check_range(device_type, end)
+        self._check_start_range(device_type, start)
+        self._check_end_range(device_type, end)
         with self._lock:
             self._ensure_word(device_type, end)
             return [self._words[device_type][start + i] & 0xFFFF for i in range(count)]
@@ -112,9 +145,11 @@ class DeviceManager:
         return result
 
     def batch_write(self, device_type: str, start: int, values: list[int]) -> None:
+        if not values:
+            raise DeviceSpecificationError("Values list must not be empty")
         end = start + len(values) - 1
-        self._check_range(device_type, start)
-        self._check_range(device_type, end)
+        self._check_start_range(device_type, start)
+        self._check_end_range(device_type, end)
         with self._lock:
             self._ensure_word(device_type, end)
             for i, v in enumerate(values):

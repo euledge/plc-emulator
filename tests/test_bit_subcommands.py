@@ -125,12 +125,12 @@ async def test_boundary_address_and_model_range_check():
             assert struct.unpack_from("<H", resp, 8)[0] == 0x0000
             assert app.device_manager.read_bit("M", 8191) is True
 
-            # 2. Write M8192 (out of range) -> returns 0xC058 (DEVICE_ADDRESS_INVALID)
+            # 2. Write M8192 (out of range) -> returns 0xC051 (ADDRESS_RANGE_EXCEEDED)
             oob_req = make_3e_req(0x1401, 0x0001, DeviceCode3E.M, 8192, 1, bytes([0x10]))
             writer.write(oob_req)
             await writer.drain()
             resp = await asyncio.wait_for(reader.readexactly(10), timeout=2.0)
-            assert struct.unpack_from("<H", resp, 8)[0] == 0xC058
+            assert struct.unpack_from("<H", resp, 8)[0] == 0xC051
 
             # 3. Read starting at M8190 count=5 (crosses boundary into 8192..8194) -> returns 0xC058
             oob_read_req = make_3e_req(0x0401, 0x0001, DeviceCode3E.M, 8190, 5)

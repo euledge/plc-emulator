@@ -1,6 +1,7 @@
 import struct
 from src.protocol.base import ProtocolHandler, ParsedRequest, CommandResult
 from src.protocol.constants import DEVICE_CODE_TO_NAME_1E, ErrorCode
+from src.device.device_manager import DeviceSpecificationError
 
 
 CMD_READ = 0x01
@@ -47,7 +48,7 @@ class McFrame1E(ProtocolHandler):
 
         device_name = DEVICE_CODE_TO_NAME_1E.get(dev_code)
         if device_name is None:
-            raise ValueError(f"Unknown 1E device code: 0x{dev_code:02X}")
+            raise DeviceSpecificationError(f"Unknown 1E device code: 0x{dev_code:02X}")
 
         if cmd == CMD_READ:
             if len(data) != 6:

@@ -1,7 +1,12 @@
 import struct
 from src.protocol.base import CommandResult, ParsedRequest
 from src.protocol.device_parser import parse_device_mc, parse_device_slmp
-from src.device.device_manager import DeviceManager
+from src.device.device_manager import (
+    DeviceManager,
+    DeviceSpecificationError,
+    AddressRangeExceededError,
+    DeviceAddressInvalidError,
+)
 from src.protocol.constants import ErrorCode
 
 
@@ -45,6 +50,10 @@ class CommandProcessor:
             is_bit = req.subcommand in (0x0001, 0x0003)
             try:
                 if is_bit:
+                    if count <= 0:
+                        return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+                    self.device_manager._check_start_range(dev_type, start_addr)
+                    self.device_manager._check_end_range(dev_type, start_addr + count - 1)
                     bit_values = [
                         1 if self.device_manager.read_bit(dev_type, start_addr + i) else 0
                         for i in range(count)
@@ -61,6 +70,12 @@ class CommandProcessor:
                         success=True,
                         data=struct.pack(f"<{len(values)}H", *values),
                     )
+            except DeviceSpecificationError:
+                return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+            except AddressRangeExceededError:
+                return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+            except DeviceAddressInvalidError:
+                return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
             except (ValueError, IndexError):
                 return CommandResult(
                     success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
@@ -74,10 +89,14 @@ class CommandProcessor:
             count = dev["count"]
             is_bit = req.subcommand in (0x0001, 0x0003)
             if is_bit:
+                if count <= 0:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
                 expected_len = (count + 1) // 2
                 if len(req.data) != expected_len:
                     return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                 try:
+                    self.device_manager._check_start_range(dev_type, start_addr)
+                    self.device_manager._check_end_range(dev_type, start_addr + count - 1)
                     for i in range(count):
                         byte_idx = i // 2
                         is_high = (i % 2 == 0)
@@ -85,11 +104,19 @@ class CommandProcessor:
                         bit_val = bool((byte_val >> 4) & 1 if is_high else (byte_val & 1))
                         self.device_manager.write_bit(dev_type, start_addr + i, bit_val)
                     return CommandResult(success=True)
+                except DeviceSpecificationError:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+                except AddressRangeExceededError:
+                    return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+                except DeviceAddressInvalidError:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
                 except (ValueError, IndexError):
                     return CommandResult(
                         success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
                     )
             else:
+                if count <= 0:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
                 if len(req.data) != count * 2:
                     return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                 try:
@@ -99,6 +126,12 @@ class CommandProcessor:
                     ]
                     self.device_manager.batch_write(dev_type, start_addr, values)
                     return CommandResult(success=True)
+                except DeviceSpecificationError:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+                except AddressRangeExceededError:
+                    return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+                except DeviceAddressInvalidError:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
                 except (ValueError, IndexError):
                     return CommandResult(
                         success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
@@ -127,6 +160,10 @@ class CommandProcessor:
             count = struct.unpack_from("<H", data, 4)[0]
             is_bit = subcommand in (0x0001, 0x0003)
             if is_bit:
+                if count <= 0:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+                self.device_manager._check_start_range(dev_type, dev_addr)
+                self.device_manager._check_end_range(dev_type, dev_addr + count - 1)
                 bit_values = [
                     1 if self.device_manager.read_bit(dev_type, dev_addr + i) else 0
                     for i in range(count)
@@ -143,7 +180,13 @@ class CommandProcessor:
                     success=True,
                     data=struct.pack(f"<{len(values)}H", *values),
                 )
-        except (ValueError, IndexError) as e:
+        except DeviceSpecificationError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+        except AddressRangeExceededError:
+            return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+        except DeviceAddressInvalidError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
+        except (ValueError, IndexError):
             return CommandResult(
                 success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
             )
@@ -157,10 +200,14 @@ class CommandProcessor:
             count = struct.unpack_from("<H", data, 4)[0]
             is_bit = subcommand in (0x0001, 0x0003)
             if is_bit:
+                if count <= 0:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
                 expected_len = (count + 1) // 2
                 if len(data) != 6 + expected_len:
                     return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                 values_data = data[6:6 + expected_len]
+                self.device_manager._check_start_range(dev_type, dev_addr)
+                self.device_manager._check_end_range(dev_type, dev_addr + count - 1)
                 for i in range(count):
                     byte_idx = i // 2
                     is_high = (i % 2 == 0)
@@ -169,6 +216,8 @@ class CommandProcessor:
                     self.device_manager.write_bit(dev_type, dev_addr + i, bit_val)
                 return CommandResult(success=True)
             else:
+                if count <= 0:
+                    return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
                 if len(data) != 6 + count * 2:
                     return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                 values_data = data[6:6 + count * 2]
@@ -178,7 +227,13 @@ class CommandProcessor:
                 ]
                 self.device_manager.batch_write(dev_type, dev_addr, values)
                 return CommandResult(success=True)
-        except (ValueError, IndexError) as e:
+        except DeviceSpecificationError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+        except AddressRangeExceededError:
+            return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+        except DeviceAddressInvalidError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
+        except (ValueError, IndexError):
             return CommandResult(
                 success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
             )
@@ -260,6 +315,7 @@ class CommandProcessor:
             for _ in range(word_count):
                 dev_type, dev_addr = parser(data[offset:offset + dev_len])
                 offset += dev_len
+                self.device_manager._check_start_range(dev_type, dev_addr)
                 val = self.device_manager.read_word(dev_type, dev_addr)
                 word_vals.append(val)
 
@@ -267,6 +323,8 @@ class CommandProcessor:
             for _ in range(dword_count):
                 dev_type, dev_addr = parser(data[offset:offset + dev_len])
                 offset += dev_len
+                self.device_manager._check_start_range(dev_type, dev_addr)
+                self.device_manager._check_end_range(dev_type, dev_addr + 1)
                 w_low = self.device_manager.read_word(dev_type, dev_addr)
                 w_high = self.device_manager.read_word(dev_type, dev_addr + 1)
                 val = w_low | (w_high << 16)
@@ -276,9 +334,14 @@ class CommandProcessor:
                 struct.pack("<I", v) for v in dword_vals
             )
             return CommandResult(success=True, data=result_bytes)
+        except DeviceSpecificationError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+        except AddressRangeExceededError:
+            return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+        except DeviceAddressInvalidError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
         except (ValueError, IndexError):
             return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
-
     def _random_write(self, data: bytes, subcommand: int = 0x0000) -> CommandResult:
         if len(data) < 2:
             return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
@@ -302,6 +365,7 @@ class CommandProcessor:
                 dev_type, dev_addr = parser(data[offset:offset + dev_len])
                 val = struct.unpack_from("<H", data, offset + dev_len)[0]
                 offset += word_entry_len
+                self.device_manager._check_start_range(dev_type, dev_addr)
                 word_writes.append((dev_type, dev_addr, val))
 
             dword_writes = []
@@ -309,6 +373,8 @@ class CommandProcessor:
                 dev_type, dev_addr = parser(data[offset:offset + dev_len])
                 val = struct.unpack_from("<I", data, offset + dev_len)[0]
                 offset += dword_entry_len
+                self.device_manager._check_start_range(dev_type, dev_addr)
+                self.device_manager._check_end_range(dev_type, dev_addr + 1)
                 dword_writes.append((dev_type, dev_addr, val))
 
             for dev_type, dev_addr, val in word_writes:
@@ -319,5 +385,11 @@ class CommandProcessor:
                 self.device_manager.write_word(dev_type, dev_addr + 1, (val >> 16) & 0xFFFF)
 
             return CommandResult(success=True)
+        except DeviceSpecificationError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
+        except AddressRangeExceededError:
+            return CommandResult(success=False, error_code=ErrorCode.ADDRESS_RANGE_EXCEEDED)
+        except DeviceAddressInvalidError:
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
         except (ValueError, IndexError):
             return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
