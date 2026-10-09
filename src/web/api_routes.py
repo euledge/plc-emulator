@@ -255,6 +255,11 @@ def latency_stats(request: Request):
     state = get_state(request)
     return state.latency.stats()
 
+@router.post("/latency/stats/reset")
+def reset_latency_stats(request: Request):
+    state = get_state(request)
+    state.latency.reset_stats()
+    return {"status": "ok"}
 
 @router.put("/latency/config")
 async def latency_config(update: LatencyConfigUpdate, request: Request = None):

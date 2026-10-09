@@ -53,11 +53,27 @@ const SettingsPage = {
           <button id="btn_load_state" class="secondary">Load State</button>
           <span id="server_status" role="status" aria-live="polite" style="margin-left:auto;padding:0.3rem 0.6rem;border-radius:4px;">Ready</span>
         </div>
+      </div>
+      <div class="panel" id="latency_stats_panel">
+        <h3 data-i18n="latency.stats">Latency Statistics</h3>
+        <div class="form-row" style="gap:1.5rem;font-family:monospace;font-size:0.95rem;align-items:center;">
+          <div><span style="color:#888;">Requests:</span> <strong id="stat_count">0</strong></div>
+          <div><span style="color:#888;">Min:</span> <strong id="stat_min">0.0 ms</strong></div>
+          <div><span style="color:#888;">Max:</span> <strong id="stat_max">0.0 ms</strong></div>
+          <div><span style="color:#888;">Avg:</span> <strong id="stat_avg">0.0 ms</strong></div>
+        </div>
+        <div class="btn-row" style="margin-top:0.8rem;">
+          <button id="btn_refresh_stats" class="secondary">Refresh Stats</button>
+          <button id="btn_reset_stats" class="secondary">Reset Stats</button>
+        </div>
       </div>`;
     document.getElementById('save_config').addEventListener('click', () => this.saveConfig());
     document.getElementById('btn_save_state').addEventListener('click', () => this.saveState());
     document.getElementById('btn_load_state').addEventListener('click', () => this.loadState());
+    document.getElementById('btn_refresh_stats').addEventListener('click', () => this.loadStats());
+    document.getElementById('btn_reset_stats').addEventListener('click', () => this.resetStats());
     await this.loadConfig();
+    await this.loadStats();
   },
 
   async loadConfig() {
@@ -133,5 +149,28 @@ const SettingsPage = {
 
   async loadState() {
     await fetch('/api/load', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: 'plc_state.json'}) });
+  },
+
+  async loadStats() {
+    try {
+      const resp = await fetch('/api/latency/stats');
+      if (!resp.ok) return;
+      const stats = await resp.json();
+      const countEl = document.getElementById('stat_count');
+      const minEl = document.getElementById('stat_min');
+      const maxEl = document.getElementById('stat_max');
+      const avgEl = document.getElementById('stat_avg');
+      if (countEl) countEl.textContent = stats.count ?? 0;
+      if (minEl) minEl.textContent = `${(stats.min ?? 0).toFixed(1)} ms`;
+      if (maxEl) maxEl.textContent = `${(stats.max ?? 0).toFixed(1)} ms`;
+      if (avgEl) avgEl.textContent = `${(stats.avg ?? 0).toFixed(1)} ms`;
+    } catch (e) {}
+  },
+
+  async resetStats() {
+    try {
+      await fetch('/api/latency/stats/reset', { method: 'POST' });
+      await this.loadStats();
+    } catch (e) {}
   }
 };

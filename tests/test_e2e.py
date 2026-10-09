@@ -97,6 +97,19 @@ def test_settings_save_changes(page, server_url, api):
     page.wait_for_function("document.getElementById('server_status').textContent === 'Saved'", timeout=5000)
 
 
+def test_settings_latency_stats_panel(page, server_url):
+    page.goto(server_url)
+    page.wait_for_selector("#latency_stats_panel", timeout=5000)
+    assert page.locator("#stat_count").is_visible()
+    assert page.locator("#stat_min").is_visible()
+    assert page.locator("#stat_max").is_visible()
+    assert page.locator("#stat_avg").is_visible()
+    page.locator("#btn_refresh_stats").click()
+    page.wait_for_timeout(300)
+    page.locator("#btn_reset_stats").click()
+    page.wait_for_timeout(300)
+    assert page.locator("#stat_count").text_content() == "0"
+
 def test_device_monitor_add_and_edit_device(page, server_url, api):
     page.goto(server_url)
     page.locator(".nav-link[data-page='monitor']").click()
