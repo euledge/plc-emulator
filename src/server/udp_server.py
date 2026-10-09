@@ -90,21 +90,40 @@ class UdpServer:
             except Exception:
                 pass
 
-        # For 3E, 4E, SLMP: validate length header against actual datagram length
-        if hasattr(self.protocol_handler, "SUBHEADER_REQUEST") and len(data) >= 8:
-            data_len = struct.unpack_from("<H", data, 6)[0]
-            if len(data) != 8 + data_len:
-                req = ParsedRequest(access_path=data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
-                result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
-                resp = self.protocol_handler.build_response(req, result)
-                if self.on_comm_log:
+        # Length validation for datagrams with length header
+        if hasattr(self.protocol_handler, "SUBHEADER_REQUEST"):
+            if getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000":
+                if len(data) >= 16:
                     try:
-                        self.on_comm_log("tx", resp)
-                    except Exception:
-                        pass
-                if transport and not transport.is_closing():
-                    transport.sendto(resp, addr)
-                return
+                        data_len = int(data[12:16].decode("ascii"), 16)
+                    except (ValueError, UnicodeDecodeError):
+                        data_len = -1
+                    if len(data) != 16 + data_len:
+                        req = ParsedRequest(access_path=data[4:12] if len(data) >= 12 else b"00000000")
+                        result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                        resp = self.protocol_handler.build_response(req, result)
+                        if self.on_comm_log:
+                            try:
+                                self.on_comm_log("tx", resp)
+                            except Exception:
+                                pass
+                        if transport and not transport.is_closing():
+                            transport.sendto(resp, addr)
+                        return
+            elif len(data) >= 8:
+                data_len = struct.unpack_from("<H", data, 6)[0]
+                if len(data) != 8 + data_len:
+                    req = ParsedRequest(access_path=data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+                    result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                    resp = self.protocol_handler.build_response(req, result)
+                    if self.on_comm_log:
+                        try:
+                            self.on_comm_log("tx", resp)
+                        except Exception:
+                            pass
+                    if transport and not transport.is_closing():
+                        transport.sendto(resp, addr)
+                    return
 
         try:
             req = self.protocol_handler.parse_request(data)
@@ -121,7 +140,9 @@ class UdpServer:
         except Exception as e:
             logger.warning("Error parsing/processing datagram from %s: %s", addr, e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)
-            req = ParsedRequest(access_path=data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+            is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
+            acc = (data[4:12] if len(data) >= 12 else b"00000000") if is_ascii else (data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+            req = ParsedRequest(access_path=acc)
 
         resp = self.protocol_handler.build_response(req, result)
 

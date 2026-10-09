@@ -71,7 +71,7 @@ class PLCEmulatorApp:
         return self.web_port
 
     async def start_plc_server(self) -> None:
-        handler = create_protocol_handler(self.config.protocol)
+        handler = create_protocol_handler(self.config.protocol, data_format=self.config.data_format)
         if self.config.transport == "tcp":
             self.state.plc_server = TcpServer(
                 port=self.config.port,

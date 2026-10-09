@@ -5,12 +5,16 @@ from src.protocol.mc_frame_4e import McFrame4E
 from src.protocol.slmp_handler import SlmpHandler
 
 
-def create_protocol_handler(protocol: str) -> ProtocolHandler:
+def create_protocol_handler(protocol: str, data_format: str = "binary") -> ProtocolHandler:
     p = protocol.upper()
-    if p == "1E":
-        return McFrame1E()
-    elif p == "3E":
+    fmt = data_format.lower() if data_format else "binary"
+    if p == "3E":
+        if fmt == "ascii":
+            from src.protocol.mc_frame_3e_ascii import McFrame3EAscii
+            return McFrame3EAscii()
         return McFrame3E()
+    elif p == "1E":
+        return McFrame1E()
     elif p == "4E":
         return McFrame4E()
     elif p == "SLMP":

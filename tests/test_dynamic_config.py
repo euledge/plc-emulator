@@ -225,7 +225,7 @@ async def test_unsupported_wire_formats_leave_live_3e_server_unchanged():
             for change in (
                 {"protocol": "UNKNOWN"},
                 {"protocol": "9E"},
-                {"data_format": "ASCII"},
+                {"data_format": "CSV"},
             ):
                 response = await client.put("/api/config", json=change)
                 assert response.status_code == 400

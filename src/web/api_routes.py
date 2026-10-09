@@ -96,7 +96,7 @@ async def apply_config_update(state, update: ConfigUpdate):
 
     if update.protocol is not None and update.protocol.upper() not in ("1E", "3E", "4E", "SLMP"):
         raise HTTPException(400, f"Unsupported protocol: {update.protocol}")
-    if update.data_format is not None and update.data_format.lower() != "binary":
+    if update.data_format is not None and update.data_format.lower() not in ("binary", "ascii"):
         raise HTTPException(400, f"Unsupported data format: {update.data_format}")
 
     # 1. Validate PLC model if provided
@@ -127,7 +127,10 @@ async def apply_config_update(state, update: ConfigUpdate):
     # Bind the replacement before disturbing active clients. Unchanged settings
     # must not disconnect them either.
     new_protocol = (update.protocol or state.config.protocol).upper()
+    new_protocol = (update.protocol or state.config.protocol).upper()
     protocol_changed = new_protocol != state.config.protocol.upper()
+    new_format = (update.data_format or state.config.data_format).lower()
+    format_changed = new_format != state.config.data_format.lower()
     new_transport = (update.transport or state.config.transport).lower()
     new_port = update.port if update.port is not None else state.config.port
     old_server = state.plc_server
@@ -141,7 +144,7 @@ async def apply_config_update(state, update: ConfigUpdate):
             host=old_server.host,
             device_manager=state.device_manager,
             latency_emulator=state.latency,
-            protocol_handler=create_protocol_handler(new_protocol),
+            protocol_handler=create_protocol_handler(new_protocol, data_format=new_format),
             on_comm_log=old_server.on_comm_log or state.on_comm_log,
         )
         try:
@@ -155,8 +158,8 @@ async def apply_config_update(state, update: ConfigUpdate):
             await new_server.stop()
             raise
         state.plc_server = new_server
-    elif old_server is not None and protocol_changed:
-        old_server.protocol_handler = create_protocol_handler(new_protocol)
+    elif old_server is not None and (protocol_changed or format_changed):
+        old_server.protocol_handler = create_protocol_handler(new_protocol, data_format=new_format)
         if hasattr(old_server, "_active_writer") and old_server._active_writer:
             try:
                 old_server._active_writer.close()
