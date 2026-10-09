@@ -8,6 +8,7 @@ class DeviceManager:
         self._lock = Lock()
         self._plc_model = plc_model
         self._callbacks: list[callable] = []
+        self.plc_status: str = "RUN"
 
     @property
     def plc_model(self) -> PlcModel | None:
@@ -17,6 +18,22 @@ class DeviceManager:
     def plc_model(self, model: PlcModel | None) -> None:
         self._plc_model = model
 
+    @property
+    def is_running(self) -> bool:
+        return self.plc_status == "RUN"
+
+    def set_plc_status(self, status: str) -> None:
+        val = status.upper()
+        if val not in ("RUN", "STOP"):
+            raise ValueError(f"Invalid PLC status: {status}")
+        self.plc_status = val
+
+    def clear_memory(self, preserve_latch: bool = False) -> None:
+        with self._lock:
+            for dev_type in list(self._words.keys()):
+                if preserve_latch and dev_type.upper() == "L":
+                    continue
+                self._words[dev_type] = [0] * len(self._words[dev_type])
     def on_change(self, callback: callable) -> None:
         self._callbacks.append(callback)
 

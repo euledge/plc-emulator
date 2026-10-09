@@ -31,7 +31,7 @@ class McFrame3E(ProtocolHandler):
             raise ValueError("Frame too short for 3E")
         req = ParsedRequest()
         req.access_path = data[2:6]
-        req.data = data
+        req.data = b""
 
         data_len = struct.unpack_from("<H", data, 6)[0]
         timer = struct.unpack_from("<H", data, 8)[0]
@@ -39,6 +39,7 @@ class McFrame3E(ProtocolHandler):
         cmd_data = data[10:10 + data_len - 2]  # subtract timer bytes
         req.command = struct.unpack_from("<H", cmd_data, 0)[0]
         req.subcommand = struct.unpack_from("<H", cmd_data, 2)[0]
+        req.data = cmd_data[4:] if len(cmd_data) >= 4 else b""
 
         if req.command in (0x0401, 0x1401):
             device_data = cmd_data[4:]
@@ -51,7 +52,8 @@ class McFrame3E(ProtocolHandler):
             })
             if req.command == 0x1401:
                 req.data = device_data[6:6 + count * 2]
-
+            else:
+                req.data = b""
         return req
 
     def build_response(self, parsed: ParsedRequest | None, result: CommandResult) -> bytes:

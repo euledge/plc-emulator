@@ -58,6 +58,8 @@ class ScriptEngine:
 
     async def _wait_if_paused(self) -> None:
         await self._pause_event.wait()
+        while self.running and not getattr(self.device_manager, "is_running", True):
+            await asyncio.sleep(0.05)
 
     async def _run_script(self, script: dict) -> None:
         stype = script["type"]

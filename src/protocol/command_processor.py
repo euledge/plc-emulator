@@ -20,9 +20,9 @@ class CommandProcessor:
         elif command == 0x0619:
             return self._loopback(data)
         elif command == 0x1001:
-            return self._remote_run()
+            return self._remote_run(data)
         elif command == 0x1002:
-            return self._remote_stop()
+            return self._remote_stop(data)
         elif command == 0x0801:
             return self._monitor_register(data)
         elif command == 0x0802:
@@ -68,9 +68,9 @@ class CommandProcessor:
         elif req.command == 0x0619:
             return self._loopback(req.data)
         elif req.command == 0x1001:
-            return self._remote_run()
+            return self._remote_run(req.data)
         elif req.command == 0x1002:
-            return self._remote_stop()
+            return self._remote_stop(req.data)
         elif req.command == 0x0801:
             return self._monitor_register(req.data)
         elif req.command == 0x0802:
@@ -123,12 +123,23 @@ class CommandProcessor:
     def _loopback(self, data: bytes) -> CommandResult:
         return CommandResult(success=True, data=data)
 
-    def _remote_run(self) -> CommandResult:
+    def _remote_run(self, data: bytes = b"") -> CommandResult:
+        if 0 < len(data) < 3:
+            return CommandResult(success=False, error_code=ErrorCode.PARAMETER_ERROR)
+        if len(data) >= 3:
+            clear_mode = data[2]
+            if clear_mode == 1:
+                self.device_manager.clear_memory(preserve_latch=True)
+            elif clear_mode == 2:
+                self.device_manager.clear_memory(preserve_latch=False)
+        self.device_manager.set_plc_status("RUN")
         return CommandResult(success=True)
 
-    def _remote_stop(self) -> CommandResult:
+    def _remote_stop(self, data: bytes = b"") -> CommandResult:
+        if len(data) == 1:
+            return CommandResult(success=False, error_code=ErrorCode.PARAMETER_ERROR)
+        self.device_manager.set_plc_status("STOP")
         return CommandResult(success=True)
-
     def _monitor_register(self, data: bytes) -> CommandResult:
         try:
             dev_type, dev_addr = parse_device_mc(data[:4])

@@ -42,6 +42,10 @@ class SaveLoadRequest(BaseModel):
     name: str = "plc_state.json"
 
 
+class PlcStatusUpdate(BaseModel):
+    status: str
+
+
 def get_state(request: Request):
     return request.app.state.state
 
@@ -323,3 +327,19 @@ def load_state(request: Request, data: SaveLoadRequest = SaveLoadRequest()):
 def get_i18n(lang: str):
     from src.i18n.i18n import get_translation
     return get_translation(lang)
+
+
+@router.get("/plc/status")
+def get_plc_status(request: Request):
+    state = get_state(request)
+    return {"status": state.device_manager.plc_status}
+
+
+@router.post("/plc/status")
+def set_plc_status(update: PlcStatusUpdate, request: Request):
+    state = get_state(request)
+    try:
+        state.device_manager.set_plc_status(update.status)
+        return {"status": state.device_manager.plc_status}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
