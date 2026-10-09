@@ -25,6 +25,12 @@ const SettingsPage = {
             <label data-i18n="config.plc_model">PLC Model</label>
             <select id="plc_model"><option value="Q03UDE">Q03UDE (MELSEC-Q)</option><option value="Q06UDE">Q06UDE (MELSEC-Q)</option><option value="R04CPU">R04CPU (MELSEC iQ-R)</option><option value="R08CPU">R08CPU (MELSEC iQ-R)</option><option value="FX5U">FX5U (MELSEC iQ-F)</option><option value="L06CPU">L06CPU (MELSEC-L)</option></select>
           </div>
+          <div class="form-group">
+            <label data-i18n="config.error_response">Error Response</label>
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin-top:0.3rem;">
+              <input type="checkbox" id="error_response_enabled" checked> Enabled
+            </label>
+          </div>
         </div>
       </div>
       <div class="panel">
@@ -64,7 +70,7 @@ const SettingsPage = {
     document.getElementById('data_format').value = (cfg.data_format || 'binary').toLowerCase();
     document.getElementById('plc_model').value = cfg.plc_model || 'Q03UDE';
     document.getElementById('latency_mode').value = cfg.latency_mode || 'none';
-    const params = cfg.latency_params || {};
+    document.getElementById('error_response_enabled').checked = cfg.error_response_enabled !== false;
     document.getElementById('latency_delay').value = params.delay_ms ?? 0;
     document.getElementById('latency_min').value = params.min_ms ?? 0;
     document.getElementById('latency_max').value = params.max_ms ?? 0;
@@ -102,6 +108,7 @@ const SettingsPage = {
       port: Number(port.value),
       data_format: document.getElementById('data_format').value,
       plc_model: document.getElementById('plc_model').value,
+      error_response_enabled: document.getElementById('error_response_enabled').checked,
       latency_mode: mode,
       latency_params: params,
     };

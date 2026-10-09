@@ -56,7 +56,7 @@
 
 ## Phase 6: 仕上げ
 - [x] デバイス値永続化（JSON保存/読込）
-- [ ] エラー応答切替機能
+- [x] エラー応答切替機能
 - [x] 全体統合テスト（TCP/UDP 3E読書・共有同時起動・動的設定反映・Web E2E検証済み）
 - [x] `README.md` 作成
 - [ ] `docs/script_dsl_reference.md` DSLリファレンス

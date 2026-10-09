@@ -22,7 +22,9 @@ class TcpServer:
         protocol_handler: ProtocolHandler | None = None,
         command_processor: CommandProcessor | None = None,
         on_comm_log: Callable[[str, bytes], None] | None = None,
+        error_response_enabled: bool = True,
     ) -> None:
+        self.error_response_enabled = error_response_enabled
         self.port = port
         self.host = host
         self.device_manager = device_manager or DeviceManager()
@@ -103,6 +105,11 @@ class TcpServer:
             logger.warning("Error parsing/processing frame: %s", e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)
             req = ParsedRequest(access_path=frame[2:6] if len(frame) >= 6 else b"\x00\x00\x00\x00")
+
+        if not result.success and not self.error_response_enabled:
+            logger.info("Error response disabled: dropping error response")
+            return None
+
         resp = self.protocol_handler.build_response(req, result)
 
         delay = await self.latency_emulator.apply_delay()

@@ -133,7 +133,15 @@ async def apply_config_update(state, update: ConfigUpdate):
     format_changed = new_format != state.config.data_format.lower()
     new_transport = (update.transport or state.config.transport).lower()
     new_port = update.port if update.port is not None else state.config.port
+    new_error_resp = (
+        update.error_response_enabled
+        if update.error_response_enabled is not None
+        else state.config.error_response_enabled
+    )
     old_server = state.plc_server
+    if old_server is not None:
+        old_server.error_response_enabled = new_error_resp
+
     if old_server is not None and (
         new_transport != state.config.transport.lower()
         or (new_port != state.config.port and new_port != old_server.port)
@@ -146,6 +154,7 @@ async def apply_config_update(state, update: ConfigUpdate):
             latency_emulator=state.latency,
             protocol_handler=create_protocol_handler(new_protocol, data_format=new_format),
             on_comm_log=old_server.on_comm_log or state.on_comm_log,
+            error_response_enabled=new_error_resp,
         )
         try:
             await new_server.start()

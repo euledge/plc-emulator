@@ -79,6 +79,7 @@ class PLCEmulatorApp:
                 latency_emulator=self.latency,
                 protocol_handler=handler,
                 on_comm_log=self.state.on_comm_log,
+                error_response_enabled=self.config.error_response_enabled,
             )
         else:
             self.state.plc_server = UdpServer(
@@ -87,6 +88,7 @@ class PLCEmulatorApp:
                 latency_emulator=self.latency,
                 protocol_handler=handler,
                 on_comm_log=self.state.on_comm_log,
+                error_response_enabled=self.config.error_response_enabled,
             )
         await self.state.plc_server.start()
 

@@ -24,7 +24,9 @@ class UdpServer:
         protocol_handler: ProtocolHandler | None = None,
         command_processor: CommandProcessor | None = None,
         on_comm_log: Callable[[str, bytes], None] | None = None,
+        error_response_enabled: bool = True,
     ) -> None:
+        self.error_response_enabled = error_response_enabled
         self.port = port
         self.host = host
         self.device_manager = device_manager or DeviceManager()
@@ -99,6 +101,8 @@ class UdpServer:
                     except (ValueError, UnicodeDecodeError):
                         data_len = -1
                     if len(data) != 16 + data_len:
+                        if not self.error_response_enabled:
+                            return
                         req = ParsedRequest(access_path=data[4:12] if len(data) >= 12 else b"00000000")
                         result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                         resp = self.protocol_handler.build_response(req, result)
@@ -113,6 +117,8 @@ class UdpServer:
             elif len(data) >= 8:
                 data_len = struct.unpack_from("<H", data, 6)[0]
                 if len(data) != 8 + data_len:
+                    if not self.error_response_enabled:
+                        return
                     req = ParsedRequest(access_path=data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
                     result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                     resp = self.protocol_handler.build_response(req, result)
@@ -149,6 +155,10 @@ class UdpServer:
             is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
             acc = (data[4:12] if len(data) >= 12 else b"00000000") if is_ascii else (data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
             req = ParsedRequest(access_path=acc)
+
+        if not result.success and not self.error_response_enabled:
+            logger.info("Error response disabled: dropping UDP error response")
+            return
 
         resp = self.protocol_handler.build_response(req, result)
 
