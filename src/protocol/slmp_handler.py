@@ -27,6 +27,7 @@ class SlmpHandler(McFrame3E):
         cmd_data = data[10:10 + data_len - 2]
         req.command = struct.unpack_from("<H", cmd_data, 0)[0]
         req.subcommand = struct.unpack_from("<H", cmd_data, 2)[0]
+        req.data = cmd_data[4:] if len(cmd_data) >= 4 else b""
 
         if req.command in (0x0401, 0x1401):
             dev_type, dev_addr = parse_device_slmp(cmd_data[4:10])

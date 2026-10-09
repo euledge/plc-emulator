@@ -1,6 +1,6 @@
 import struct
 from src.protocol.base import CommandResult, ParsedRequest
-from src.protocol.device_parser import parse_device_mc
+from src.protocol.device_parser import parse_device_mc, parse_device_slmp
 from src.device.device_manager import DeviceManager
 from src.protocol.constants import ErrorCode
 
@@ -15,6 +15,10 @@ class CommandProcessor:
             return self._batch_read(data, subcommand=subcommand)
         elif command == 0x1401:
             return self._batch_write(data, subcommand=subcommand)
+        elif command == 0x0403:
+            return self._random_read(data, subcommand=subcommand)
+        elif command == 0x1402:
+            return self._random_write(data, subcommand=subcommand)
         elif command == 0x0101:
             return self._cpu_type_read()
         elif command == 0x0619:
@@ -99,6 +103,10 @@ class CommandProcessor:
                     return CommandResult(
                         success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
                     )
+        elif req.command == 0x0403:
+            return self._random_read(req.data, subcommand=req.subcommand)
+        elif req.command == 0x1402:
+            return self._random_write(req.data, subcommand=req.subcommand)
         elif req.command == 0x0101:
             return self._cpu_type_read()
         elif req.command == 0x0619:
@@ -231,3 +239,85 @@ class CommandProcessor:
             return CommandResult(
                 success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID
             )
+
+    def _random_read(self, data: bytes, subcommand: int = 0x0000) -> CommandResult:
+        if len(data) < 2:
+            return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+
+        word_count = data[0]
+        dword_count = data[1]
+        is_slmp = subcommand in (0x0002, 0x0003)
+        dev_len = 6 if is_slmp else 4
+        parser = parse_device_slmp if is_slmp else parse_device_mc
+
+        expected_len = 2 + word_count * dev_len + dword_count * dev_len
+        if len(data) < expected_len:
+            return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+
+        try:
+            offset = 2
+            word_vals = []
+            for _ in range(word_count):
+                dev_type, dev_addr = parser(data[offset:offset + dev_len])
+                offset += dev_len
+                val = self.device_manager.read_word(dev_type, dev_addr)
+                word_vals.append(val)
+
+            dword_vals = []
+            for _ in range(dword_count):
+                dev_type, dev_addr = parser(data[offset:offset + dev_len])
+                offset += dev_len
+                w_low = self.device_manager.read_word(dev_type, dev_addr)
+                w_high = self.device_manager.read_word(dev_type, dev_addr + 1)
+                val = w_low | (w_high << 16)
+                dword_vals.append(val)
+
+            result_bytes = b"".join(struct.pack("<H", v) for v in word_vals) + b"".join(
+                struct.pack("<I", v) for v in dword_vals
+            )
+            return CommandResult(success=True, data=result_bytes)
+        except (ValueError, IndexError):
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
+
+    def _random_write(self, data: bytes, subcommand: int = 0x0000) -> CommandResult:
+        if len(data) < 2:
+            return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+
+        word_count = data[0]
+        dword_count = data[1]
+        is_slmp = subcommand in (0x0002, 0x0003)
+        dev_len = 6 if is_slmp else 4
+        parser = parse_device_slmp if is_slmp else parse_device_mc
+
+        word_entry_len = dev_len + 2
+        dword_entry_len = dev_len + 4
+        expected_len = 2 + word_count * word_entry_len + dword_count * dword_entry_len
+        if len(data) != expected_len:
+            return CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+
+        try:
+            offset = 2
+            word_writes = []
+            for _ in range(word_count):
+                dev_type, dev_addr = parser(data[offset:offset + dev_len])
+                val = struct.unpack_from("<H", data, offset + dev_len)[0]
+                offset += word_entry_len
+                word_writes.append((dev_type, dev_addr, val))
+
+            dword_writes = []
+            for _ in range(dword_count):
+                dev_type, dev_addr = parser(data[offset:offset + dev_len])
+                val = struct.unpack_from("<I", data, offset + dev_len)[0]
+                offset += dword_entry_len
+                dword_writes.append((dev_type, dev_addr, val))
+
+            for dev_type, dev_addr, val in word_writes:
+                self.device_manager.write_word(dev_type, dev_addr, val)
+
+            for dev_type, dev_addr, val in dword_writes:
+                self.device_manager.write_word(dev_type, dev_addr, val & 0xFFFF)
+                self.device_manager.write_word(dev_type, dev_addr + 1, (val >> 16) & 0xFFFF)
+
+            return CommandResult(success=True)
+        except (ValueError, IndexError):
+            return CommandResult(success=False, error_code=ErrorCode.DEVICE_ADDRESS_INVALID)
