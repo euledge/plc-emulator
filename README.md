@@ -13,7 +13,7 @@ PLC communication emulator supporting MC protocol / SLMP
 
 ## Features
 
-- **MC Protocol** 3E binary frames
+- **MC Protocol** 3E/1E/4E frames (binary/ASCII) + **SLMP**
 - **TCP / UDP** servers
 - **Device memory** read/write (bit, word, batch)
 - **PLC models** (Q03UDE, Q06UDE, R04CPU, R08CPU, FX5U, L06CPU) with range checking
@@ -26,6 +26,15 @@ PLC communication emulator supporting MC protocol / SLMP
 - **State persistence** JSON save/load
 - **Unit, integration, and browser tests**
 
+## Web UI Dashboard
+
+![Device Monitor](docs/images/manual_device_monitor.png)
+
+The built-in web dashboard provides real-time device monitoring, inline memory editing, communication logging, and autonomous script execution:
+- **Device Monitor**: Real-time table viewing across all device types (`ALL` tab) or filtered by type (D, W, M, X, Y, etc.). Supports batch additions via points, 6 display formats (DEC, DEC Signed, HEX, BIN, FLOAT, ASCII), and direct double-click inline editing.
+- **Settings Panel**: Dynamic runtime switching of protocols (3E, 1E, 4E, SLMP), transports (TCP/UDP), PLC models, and latency simulation.
+- **Communication Log**: Live packet inspector with command badges, hex dump, and text log export.
+- **Script Editor**: AST-safe YAML editor with syntax highlighting, line numbers, and preset industrial scenarios.
 ## Quick Start
 
 ```bash
