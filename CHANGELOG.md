@@ -2,14 +2,31 @@
 
 All notable changes to PLCEmulator, tracked by release date.
 
-## Unreleased
+## October 10, 2026 — v0.2.0
 
-### Fixed
+### ✨ New
 
-- Unexpected Web server exit now completes PLC shutdown before signaling stopped, without duplicate cleanup (#3).
-- Web settings now persist the selected PLC model and latency, report save errors, and apply TCP/UDP or port changes without dropping clients when a switch fails (#4).
-- Unsupported protocol and data-format selections return an error instead of reporting a successful switch; only MC 3E binary is currently available (#4).
-- Configuration updates validate all fields before changing live state and normalize transport values so TCP remains TCP after restart (#4).
+- **Multi-Protocol Communication** — Added support for MC Protocol 3E (Binary & ASCII), 1E, 4E (with serial number echo-back), and SLMP with runtime subheader auto-detection on a single port (#5, #7, #8, #9, #12, #13, #15).
+- **Advanced Command Coverage** — Implemented random read/write (0403/1402), bit-level subcommands (0001/0003), monitor register/execute (0801/0802), remote RUN/STOP (1001/1002), and remote password authentication (1630/1631) (#6, #10, #11, #12, #27).
+- **Enhanced Device Monitor** — Added "ALL" tab for simultaneous multi-device viewing, "Points" batch address addition, 6 display formats (DEC, DEC Signed, HEX, BIN, FLOAT, ASCII), inline value editing, and "Clear All" with memory reset (#16, #19, #21, #22, #58, #60).
+- **Communication Log Improvements** — Added parsed command badges (e.g. `[Batch Read (0401)]`), automatic password payload masking (`**`), and one-click plain text log download (#7, #23, #24, #27).
+- **Script Editor Upgrades** — Added syntax highlighting and line numbers for YAML, pre-packaged industrial scenario loading, AST sandbox safety validation, and complete Script DSL documentation (#8, #17, #18, #25, #26, #28).
+- **Latency & Fault Simulation** — Added real-time latency statistics panel and error response suppression toggle (#15, #20).
+- **Illustrated Documentation** — Added screenshot-backed User Manual in Japanese and English (`docs/user_manual.ja.md`, `docs/user_manual.md`).
+
+### ⚡ Improved
+
+- Dynamic runtime configuration updates without disconnecting active clients when settings are unchanged (#4).
+- Strict conformance to official MELSEC error codes (`0xC050`, `0xC051`, `0xC056`, `0xC058`, `0xC059`, `0xC05B`, `0xC061`, `0x4A01`, `0x4A03`) (#14, #27).
+- Port isolation using ephemeral ports (`port=0`) in test suites, avoiding collisions with active running instances.
+- Automated CI test pipeline with full Playwright E2E coverage across 232 test cases.
+
+### 🐛 Fixed
+
+- Fixed device monitor overwriting previously registered devices when adding new ones (#58).
+- Fixed "Clear All" button failing to remove rows from the device monitor table (#60).
+- Enforced 1-client exclusive TCP connection policy (#9).
+- Handled graceful PLC server shutdown upon unexpected web server termination (#3).
 
 ## June 20, 2026 — v0.1.0
 
@@ -55,4 +72,4 @@ All notable changes to PLCEmulator, tracked by release date.
 
 This project follows [Semantic Versioning](https://semver.org/). As an initial development release (0.x), breaking changes may occur in MINOR versions until 1.0.0.
 
-[Compare v0.1.0 → HEAD](https://github.com/euledge/plc-emulator/compare/v0.1.0...HEAD)
+[Compare v0.1.0 → v0.2.0](https://github.com/euledge/plc-emulator/compare/v0.1.0...v0.2.0) | [Compare v0.2.0 → HEAD](https://github.com/euledge/plc-emulator/compare/v0.2.0...HEAD)
