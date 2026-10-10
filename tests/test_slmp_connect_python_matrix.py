@@ -72,6 +72,19 @@ async def test_bulk_bit_read(profile, protocol):
             await c.close()
     finally:
         await app.stop()
+@pytest.mark.asyncio
+@pytest.mark.parametrize("profile,protocol", PROFILES)
+async def test_single_bit_read(profile, protocol):
+    app = await _start(protocol)
+    try:
+        c = await _client(app, profile)
+        try:
+            assert await c.read_devices("M0", 1, bit_unit=True) == [True]
+        finally:
+            await c.close()
+    finally:
+        await app.stop()
+
 
 
 @pytest.mark.asyncio
