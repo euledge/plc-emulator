@@ -27,6 +27,7 @@ All notable changes to PLCEmulator, tracked by release date.
 - Fixed "Clear All" button failing to remove rows from the device monitor table (#60).
 - Enforced 1-client exclusive TCP connection policy (#9).
 - Handled graceful PLC server shutdown upon unexpected web server termination (#3).
+- Fixed script editor requiring prior manual save to start newly written scripts (#62).
 
 ## June 20, 2026 — v0.1.0
 
