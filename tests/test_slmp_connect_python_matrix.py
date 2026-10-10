@@ -102,6 +102,23 @@ async def test_random_read(profile, protocol):
             await c.close()
     finally:
         await app.stop()
+@pytest.mark.asyncio
+@pytest.mark.parametrize("profile,protocol", PROFILES)
+async def test_random_word_read_with_bit_read(profile, protocol):
+    """Verify random word reads and bit reads through the same client session."""
+    app = await _start(protocol)
+    try:
+        c = await _client(app, profile)
+        try:
+            random_result = await c.read_random(word_devices=["D100", "D105"])
+            flat = getattr(random_result, "word_values", None) or getattr(random_result, "words", None) or random_result
+            assert 100 in _flatten(flat) and 105 in _flatten(flat)
+            assert await c.read_devices("M0", 1, bit_unit=True) == [True]
+        finally:
+            await c.close()
+    finally:
+        await app.stop()
+
 
 
 def _flatten(obj):
