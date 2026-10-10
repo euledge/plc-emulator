@@ -7,7 +7,7 @@
 
 MCプロトコル / SLMP対応のPLC通信エミュレータ
 
-[**English version**](README.md) | [**リリースノート (v0.2.0)**](RELEASE_NOTES_v0.2.0.ja.md) | [**ユーザーマニュアル**](docs/user_manual.ja.md) | [**スクリプトDSLリファレンス**](docs/script_dsl_reference.md)
+[**English version**](README.md) | [**リリースノート (v1.0.0)**](RELEASE_NOTES_v1.0.0.ja.md) | [**ユーザーマニュアル**](docs/user_manual.ja.md) | [**スクリプトDSLリファレンス**](docs/script_dsl_reference.md)
 
 > **GitHub トピック候補**: `plc`, `mc-protocol`, `slmp`, `mitsubishi`, `emulator`, `fastapi`, `plc-simulator`, `python`, `scada`, `industrial-automation`
 

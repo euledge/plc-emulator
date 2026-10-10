@@ -1,12 +1,12 @@
-# v0.2.0 — PLC Emulator Release Notes
+# v1.0.0 — PLC Emulator Release Notes
 
 **Release Date:** October 10, 2026
 
 ---
 
-## Major Update: Enhanced Protocol Support, Monitoring & Usability
+## First Major Release (v1.0.0) — Production-Ready Hardware-Free PLC Simulation
 
-PLCEmulator v0.2.0 is a comprehensive feature and stability release. It expands MELSEC MC Protocol and SLMP protocol compatibility, adds official error codes and security authentication, enhances the Web UI device monitor and communication log, and includes full user documentation with screenshots.
+PLCEmulator v1.0.0 marks our first major production-stable release. Following extensive test coverage, protocol enhancements, and real-world refinements, the emulator delivers reliable, full-featured MELSEC MC Protocol and SLMP simulation for SCADA, MES, and industrial automation testing.
 
 ![PLCEmulator Web Dashboard — Device Monitor](docs/images/manual_device_monitor.png)
 

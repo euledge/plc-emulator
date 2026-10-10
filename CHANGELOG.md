@@ -2,7 +2,7 @@
 
 All notable changes to PLCEmulator, tracked by release date.
 
-## October 10, 2026 — v0.2.0
+## October 10, 2026 — v1.0.0
 
 ### ✨ New
 
@@ -70,6 +70,6 @@ All notable changes to PLCEmulator, tracked by release date.
 
 ## About Versioning
 
-This project follows [Semantic Versioning](https://semver.org/). As an initial development release (0.x), breaking changes may occur in MINOR versions until 1.0.0.
+This project follows [Semantic Versioning](https://semver.org/).
 
-[Compare v0.1.0 → v0.2.0](https://github.com/euledge/plc-emulator/compare/v0.1.0...v0.2.0) | [Compare v0.2.0 → HEAD](https://github.com/euledge/plc-emulator/compare/v0.2.0...HEAD)
+[Compare v0.1.0 → v1.0.0](https://github.com/euledge/plc-emulator/compare/v0.1.0...v1.0.0) | [Compare v1.0.0 → HEAD](https://github.com/euledge/plc-emulator/compare/v1.0.0...HEAD)
