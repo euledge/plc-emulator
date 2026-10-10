@@ -54,6 +54,18 @@ uv run pytest tests/test_e2e.py
 # ※ ブラウザを表示して動作確認する場合は --headed を付与
 # uv run pytest tests/test_e2e.py --headed
 ```
+## プロトコル互換性の検証
+
+開発時のプロトコル互換性検証には [`slmp-connect-python`](https://github.com/fa-yoshinobu/plc-comm-slmp-python) を使用しています。
+
+検証マトリクスは以下を対象とします。
+
+- MC 3E / 4E フレーム
+- SLMP 3E / 4E フレーム
+- 単体ワード読出し、一括ワード読出し、一括ビット読出し、ランダム読出し
+
+`slmp-connect-python` は開発時の検証クライアントのみです。エミュレータの実行時には不要であり、本番用依存関係には含まれません。
+
 
 ## プロジェクト構成
 
