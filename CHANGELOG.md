@@ -10,7 +10,7 @@ All notable changes to PLCEmulator, tracked by release date.
 - **Advanced Command Coverage** — Implemented random read/write (0403/1402), bit-level subcommands (0001/0003), monitor register/execute (0801/0802), remote RUN/STOP (1001/1002), and remote password authentication (1630/1631) (#6, #10, #11, #12, #27).
 - **Enhanced Device Monitor** — Added "ALL" tab for simultaneous multi-device viewing, "Points" batch address addition, 6 display formats (DEC, DEC Signed, HEX, BIN, FLOAT, ASCII), inline value editing, and "Clear All" with memory reset (#16, #19, #21, #22, #58, #60).
 - **Communication Log Improvements** — Added parsed command badges (e.g. `[Batch Read (0401)]`), automatic password payload masking (`**`), and one-click plain text log download (#7, #23, #24, #27).
-- **Script Editor Upgrades** — Added syntax highlighting and line numbers for YAML, pre-packaged industrial scenario loading, AST sandbox safety validation, and complete Script DSL documentation (#8, #17, #18, #25, #26, #28).
+- **Typed Script Values** — Added little-endian `dword`, `long`, `float32`, and fixed-length `ascii` action writes across consecutive word devices (#68).
 - **Latency & Fault Simulation** — Added real-time latency statistics panel and error response suppression toggle (#15, #20).
 - **Illustrated Documentation** — Added screenshot-backed User Manual in Japanese and English (`docs/user_manual.ja.md`, `docs/user_manual.md`).
 

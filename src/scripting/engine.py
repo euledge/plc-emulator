@@ -1,11 +1,52 @@
 import asyncio
+import math
 import re
+import struct
 import time
 from src.device.device_definition import get_device_type, DeviceType
 from src.device.device_manager import DeviceManager
 from src.scripting.evaluator import SafeEvaluator
 
 DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+def _encode_typed_value(data_type: str, value, length: int | None = None) -> list[int]:
+    if data_type == "dword":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("dword value must be an integer")
+        number = value
+        if not 0 <= number <= 0xFFFFFFFF:
+            raise ValueError("dword value must be between 0 and 4294967295")
+        raw = struct.pack("<I", number)
+    elif data_type == "long":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("long value must be an integer")
+        number = value
+        if not -0x80000000 <= number <= 0x7FFFFFFF:
+            raise ValueError("long value is outside the signed 32-bit range")
+        raw = struct.pack("<i", number)
+    elif data_type == "float32":
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("float32 value must be finite")
+        raw = struct.pack("<f", number)
+    elif data_type == "ascii":
+        if not isinstance(value, str):
+            raise ValueError("ascii value must be a string")
+        if length is not None:
+            if length <= 0 or len(value) > length:
+                raise ValueError("ascii length must be positive and fit the value")
+            value = value.ljust(length, "\x00")
+        encoded = value.encode("ascii")
+        if len(encoded) % 2:
+            encoded += b"\x00"
+        raw = encoded
+    else:
+        raise ValueError(f"unsupported data_type: {data_type}")
+    if len(raw) % 2:
+        raw += b"\x00"
+    return list(struct.unpack(f"<{len(raw) // 2}H", raw))
+
 
 
 class ScriptEngine:
@@ -179,7 +220,20 @@ class ScriptEngine:
             return
 
         dtype = get_device_type(dev_type)
+        data_type = action.get("data_type")
+        if data_type is None:
+            if dtype == DeviceType.BIT:
+                self.device_manager.write_bit(dev_type, addr, bool(val))
+            else:
+                self.device_manager.write_word(dev_type, addr, int(val))
+            return
+        if not isinstance(data_type, str):
+            return
         if dtype == DeviceType.BIT:
-            self.device_manager.write_bit(dev_type, addr, bool(val))
-        else:
-            self.device_manager.write_word(dev_type, addr, int(val))
+            return
+        try:
+            words = _encode_typed_value(data_type.lower(), val, action.get("length"))
+        except (TypeError, ValueError, OverflowError):
+            return
+        for offset, word in enumerate(words):
+            self.device_manager.write_word(dev_type, addr + offset, word)

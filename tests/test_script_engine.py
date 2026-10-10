@@ -104,3 +104,55 @@ async def test_all_example_scripts_load_and_run(engine):
         await eng.start()
         await asyncio.sleep(0.02)
         await eng.stop()
+@pytest.mark.asyncio
+async def test_typed_dword_action_writes_two_words(engine):
+    script = {
+        "name": "typed_dword",
+        "type": "sequence",
+        "loop": False,
+        "steps": [
+            {
+                "wait_ms": 0,
+                "actions": [
+                    {"target": "D300", "value": 100000, "data_type": "dword"},
+                ],
+            }
+        ],
+    }
+    engine.load_scripts([script])
+    await engine.start()
+    await asyncio.sleep(0.02)
+    await engine.stop()
+    assert engine.device_manager.read_word("D", 300) == 34464
+    assert engine.device_manager.read_word("D", 301) == 1
+@pytest.mark.asyncio
+async def test_typed_long_float_and_ascii_actions(engine):
+    script = {
+        "name": "typed_values",
+        "type": "sequence",
+        "loop": False,
+        "steps": [
+            {
+                "wait_ms": 0,
+                "actions": [
+                    {"target": "D310", "value": -100000, "data_type": "long"},
+                    {"target": "D320", "value": 12.5, "data_type": "float32"},
+                    {"target": "D330", "value": "ABC", "data_type": "ascii"},
+                    {"target": "D340", "value": "PLC", "data_type": "ascii", "length": 6},
+                ],
+            }
+        ],
+    }
+    engine.load_scripts([script])
+    await engine.start()
+    await asyncio.sleep(0.02)
+    await engine.stop()
+    assert engine.device_manager.read_word("D", 310) == 31072
+    assert engine.device_manager.read_word("D", 311) == 65534
+    assert engine.device_manager.read_word("D", 320) == 0
+    assert engine.device_manager.read_word("D", 321) == 16712
+    assert engine.device_manager.read_word("D", 330) == 0x4241
+    assert engine.device_manager.read_word("D", 331) == 0x0043
+    assert engine.device_manager.read_word("D", 340) == 0x4C50
+    assert engine.device_manager.read_word("D", 341) == 0x0043
+    assert engine.device_manager.read_word("D", 342) == 0
