@@ -22,9 +22,14 @@ if TYPE_CHECKING:
 def sanitize_comm_log(packet: bytes) -> str:
     if len(packet) >= 14 and packet[:2] in (b"\x50\x00", b"\x54\x00", b"\xD0\x00", b"\xD4\x00"):
         cmd = struct.unpack_from("<H", packet, 10)[0]
+        cmd_offset = 10
+        if cmd not in (0x1630, 0x1631) and len(packet) >= 15:
+            cmd = struct.unpack_from("<H", packet, 11)[0]
+            cmd_offset = 11
         if cmd in (0x1630, 0x1631):
-            header_hex = packet[:14].hex(" ").upper()
-            masked_payload = " ".join(["**"] * (len(packet) - 14))
+            header_end = cmd_offset + 4
+            header_hex = packet[:header_end].hex(" ").upper()
+            masked_payload = " ".join(["**"] * (len(packet) - header_end))
             return f"{header_hex} {masked_payload}".strip()
     return packet.hex(" ").upper()
 COMMAND_NAMES_3E = {
@@ -62,6 +67,9 @@ def resolve_command_name(direction: str, packet: bytes) -> str:
             try:
                 cmd = struct.unpack_from("<H", packet, 10)[0]
                 name = COMMAND_NAMES_3E.get(cmd)
+                if not name and len(packet) >= 13:
+                    cmd = struct.unpack_from("<H", packet, 11)[0]
+                    name = COMMAND_NAMES_3E.get(cmd)
                 if name:
                     return f"{name} ({cmd:04X})"
             except struct.error:

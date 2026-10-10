@@ -54,6 +54,18 @@ uv run pytest tests/test_e2e.py
 # Note: Add --headed to see the browser window
 # uv run pytest tests/test_e2e.py --headed
 ```
+## Protocol Compatibility Verification
+
+During development, protocol compatibility is additionally verified with [`slmp-connect-python`](https://github.com/fa-yoshinobu/plc-comm-slmp-python).
+
+The verification matrix covers:
+
+- MC 3E and 4E frames
+- SLMP 3E and 4E frames
+- single-bit, single-word, bulk-word, bulk-bit, and random reads
+
+`slmp-connect-python` is a development-time verification client only. It is not required by the emulator at runtime and is not part of the production dependency set.
+
 
 ## Project Structure
 

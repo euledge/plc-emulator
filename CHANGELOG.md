@@ -19,7 +19,8 @@ All notable changes to PLCEmulator, tracked by release date.
 - Dynamic runtime configuration updates without disconnecting active clients when settings are unchanged (#4).
 - Strict conformance to official MELSEC error codes (`0xC050`, `0xC051`, `0xC056`, `0xC058`, `0xC059`, `0xC05B`, `0xC061`, `0x4A01`, `0x4A03`) (#14, #27).
 - Port isolation using ephemeral ports (`port=0`) in test suites, avoiding collisions with active running instances.
-- Automated CI test pipeline with full Playwright E2E coverage across 232 test cases.
+- Standard MELSEC 5-byte routing headers and iQ-R 4E serial framing are validated against `slmp-connect-python`.
+- Added development-only protocol compatibility coverage for 3E/4E and SLMP single-bit, batch-bit, word, and random reads.
 
 ### 🐛 Fixed
 

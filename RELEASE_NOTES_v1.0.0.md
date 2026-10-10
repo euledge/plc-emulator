@@ -80,7 +80,7 @@ PLCEmulator v1.0.0 marks our first major production-stable release. Following ex
 - **Dynamic Server Configuration**: Runtime updates to PLC models, transports (TCP/UDP), and latency parameters without dropping existing sessions when unchanged.
 - **Official MELSEC Error Codes**: Full conformance to official error codes (`0xC050`, `0xC051`, `0xC056`, `0xC058`, `0xC059`, `0xC05B`, `0xC061`, `0x4A01`, `0x4A03`).
 - **CI Test Suite Isolation**: Port isolation with ephemeral ports (`port=0`), Playwright dependencies installed with `--with-deps`, all 232 tests passing cleanly in CI.
-
+- **Real-client protocol validation**: Added development-only `slmp-connect-python` coverage for standard MELSEC 5-byte routing headers, iQ-R 4E serial framing, 3E/4E SLMP traffic, single-bit reads, batch-bit reads, word reads, and random reads.
 ---
 
 ### 🐛 Bug Fixes
