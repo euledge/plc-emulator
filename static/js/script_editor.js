@@ -26,6 +26,7 @@ const ScriptEditor = {
               <button id="script_start" class="secondary" data-i18n="script.start">Start</button>
               <button id="script_pause" class="secondary" data-i18n="script.pause">Pause</button>
               <button id="script_stop" class="secondary" data-i18n="script.stop">Stop</button>
+              <button id="script_stop_all" class="secondary" data-i18n="script.stop_all">Stop All</button>
               <span id="script_status" style="margin-left:auto;padding:0.3rem 0.6rem;border-radius:4px;font-weight:bold;color:#888;">stopped</span>
             </div>
           </div>
@@ -60,6 +61,7 @@ const ScriptEditor = {
     document.getElementById('script_start').addEventListener('click', () => this.startScript());
     document.getElementById('script_pause').addEventListener('click', () => this.pauseScript());
     document.getElementById('script_stop').addEventListener('click', () => this.stopScript());
+    document.getElementById('script_stop_all').addEventListener('click', () => this.stopAllScripts());
     const editor = document.getElementById('script_editor');
     if (editor) {
       editor.addEventListener('input', () => this.updateEditor());
@@ -209,7 +211,7 @@ const ScriptEditor = {
     const resp = await fetch(`/api/scripts/${encodeURIComponent(name)}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content, exclusive: true })
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
@@ -233,6 +235,11 @@ const ScriptEditor = {
     if (!name.endsWith('.yaml') && !name.endsWith('.yml')) name = `${name}.yaml`;
     await fetch(`/api/scripts/${encodeURIComponent(name)}/stop`, { method: 'POST' });
     await this.refreshStatus();
+  },
+
+  async stopAllScripts() {
+    await fetch('/api/scripts/stop_all', { method: 'POST' });
+    this.setStatus('stopped');
   },
 
   setStatus(status) {

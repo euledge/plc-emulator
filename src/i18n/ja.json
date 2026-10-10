@@ -31,6 +31,7 @@
   "log.data": "データ",
   "script.start": "開始",
   "script.stop": "停止",
+  "script.stop_all": "全停止",
   "script.pause": "一時停止",
   "script.load_template": "テンプレート読込",
   "script.templates": "プリセットテンプレート"

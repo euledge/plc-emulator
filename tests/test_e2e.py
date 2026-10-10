@@ -494,3 +494,40 @@ def test_script_editor_direct_start_without_prior_save(page, server_url):
     p = Path(__file__).resolve().parent.parent / "scripts" / "untitled.yaml"
     if p.exists():
         p.unlink()
+
+
+def test_script_editor_exclusive_execution_and_stop_all(page, server_url, api):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='scripts']").click()
+    page.wait_for_selector("#script_template", timeout=5000)
+    page.wait_for_function("document.getElementById('script_template').options.length > 1", timeout=5000)
+
+    # 1. Start template script
+    page.locator("#script_template").select_option("sawtooth.yaml")
+    page.locator("#script_load_template").click()
+    page.wait_for_timeout(300)
+    page.locator("#script_start").click()
+    page.wait_for_function("document.getElementById('script_status').textContent === 'running'", timeout=5000)
+
+    # 2. Now start a custom script writing constant 100 to D100
+    page.locator("#script_new").click()
+    custom_yaml = "type: periodic\ninterval_ms: 200\nactions:\n  - target: D100\n    value: 100\n"
+    page.locator("#script_editor").fill(custom_yaml)
+    page.locator("#script_start").click()
+    page.wait_for_function("document.getElementById('script_status').textContent === 'running'", timeout=5000)
+
+    # Wait a bit and verify D100 is stable at 100 (not flipped by sawtooth)
+    page.wait_for_timeout(600)
+    resp = api.get("/api/devices/D?start=100&count=1")
+    assert resp.json()["values"] == [100]
+
+    # 3. Test Stop All button
+    page.locator("#script_stop_all").click()
+    page.wait_for_function("document.getElementById('script_status').textContent === 'stopped'", timeout=5000)
+    assert page.locator("#script_status").text_content() == "stopped"
+
+    # Cleanup
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / "scripts" / "untitled.yaml"
+    if p.exists():
+        p.unlink()

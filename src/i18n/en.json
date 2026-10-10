@@ -31,6 +31,7 @@
   "log.data": "Data",
   "script.start": "Start",
   "script.stop": "Stop",
+  "script.stop_all": "Stop All",
   "script.pause": "Pause",
   "script.load_template": "Load Template",
   "script.templates": "Preset Templates"

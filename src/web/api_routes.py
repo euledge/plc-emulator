@@ -41,6 +41,7 @@ class ScriptContent(BaseModel):
     content: str
 class ScriptStartRequest(BaseModel):
     content: str | None = None
+    exclusive: bool = False
 
 
 class ScriptValidationRequest(BaseModel):
@@ -359,6 +360,15 @@ async def start_script(name: str, request: Request, data: ScriptStartRequest = S
 
     if not path.exists():
         raise HTTPException(404, "Script not found")
+    # Stop any other running script engines if exclusive execution is requested
+    if data.exclusive:
+        for other_name, other_engine in list(state.script_engines.items()):
+            if other_name != name and other_engine is not None and other_engine.running:
+                try:
+                    await other_engine.stop()
+                except Exception:
+                    pass
+                state.script_engines.pop(other_name, None)
     existing = state.script_engines.get(name)
     if existing is not None:
         if existing.running and existing.paused:
@@ -367,7 +377,6 @@ async def start_script(name: str, request: Request, data: ScriptStartRequest = S
         if existing.running:
             return {"status": "running"}
         await existing.stop()
-
     content = path.read_text(encoding="utf-8")
     valid, errors = ScriptParser.validate_content(content)
     if not valid:
@@ -419,6 +428,13 @@ async def stop_script(name: str, request: Request):
     if engine is not None:
         await engine.stop()
     return {"status": "stopped"}
+
+
+@router.post("/scripts/stop_all")
+async def stop_all_scripts_endpoint(request: Request):
+    state = get_state(request)
+    await state.stop_all_scripts()
+    return {"status": "all_stopped"}
 
 @router.post("/save")
 def save_state(request: Request, data: SaveLoadRequest = SaveLoadRequest()):
