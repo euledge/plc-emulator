@@ -5,6 +5,11 @@ from src.device.device_manager import DeviceSpecificationError
 def parse_device_mc(data: bytes) -> tuple[str, int]:
     if len(data) < 4:
         raise ValueError("MC device data too short")
+    if data[3] in DEVICE_CODE_TO_NAME_3E:
+        code = data[3]
+        addr = data[0] | (data[1] << 8) | (data[2] << 16)
+        return DEVICE_CODE_TO_NAME_3E[code], addr
+
     code = data[0]
     addr = data[1] | (data[2] << 8) | (data[3] << 16)
     device_name = DEVICE_CODE_TO_NAME_3E.get(code)

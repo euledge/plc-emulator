@@ -67,8 +67,26 @@ class TcpServer:
             if buf[:2] == b"\x50\x00":
                 if len(buf) < 8:
                     return None
-                data_len = struct.unpack_from("<H", buf, 6)[0]
-                total_len = 8 + data_len
+                total_len = None
+                if len(buf) >= 13:
+                    cmd_5 = struct.unpack_from("<H", buf, 11)[0]
+                    cmd_4 = struct.unpack_from("<H", buf, 10)[0]
+                    if cmd_5 in (0x0401, 0x1401, 0x0403, 0x1402, 0x0101, 0x0619, 0x1001, 0x1002, 0x0801, 0x0802, 0x1630, 0x1631):
+                        total_len = 9 + struct.unpack_from("<H", buf, 7)[0]
+                    elif cmd_4 in (0x0401, 0x1401, 0x0403, 0x1402, 0x0101, 0x0619, 0x1001, 0x1002, 0x0801, 0x0802, 0x1630, 0x1631):
+                        total_len = 8 + struct.unpack_from("<H", buf, 6)[0]
+                if total_len is None:
+                    if len(buf) >= 9:
+                        dlen_5 = struct.unpack_from("<H", buf, 7)[0]
+                        dlen_4 = struct.unpack_from("<H", buf, 6)[0]
+                        if 2 <= dlen_4 <= len(buf) - 8:
+                            total_len = 8 + dlen_4
+                        elif 2 <= dlen_5 <= len(buf) - 9:
+                            total_len = 9 + dlen_5
+                        else:
+                            return None
+                    else:
+                        return None
                 if len(buf) < total_len:
                     return None
                 frame = bytes(buf[:total_len])

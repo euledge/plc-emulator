@@ -4,6 +4,12 @@ from src.protocol.device_parser import parse_device_mc
 from src.protocol.constants import ErrorCode
 
 
+KNOWN_3E_COMMANDS = {
+    0x0401, 0x1401, 0x0403, 0x1402, 0x0101, 0x0619,
+    0x1001, 0x1002, 0x0801, 0x0802, 0x1630, 0x1631,
+}
+
+
 class McFrame3E(ProtocolHandler):
     SUBHEADER_REQUEST = b"\x50\x00"
     SUBHEADER_RESPONSE = b"\xD0\x00"
@@ -16,8 +22,33 @@ class McFrame3E(ProtocolHandler):
             if buf[:2] == self.SUBHEADER_REQUEST:
                 if len(buf) < 8:
                     return None
-                data_len = struct.unpack_from("<H", buf, 6)[0]
-                total_len = 8 + data_len
+
+                # Check for 5-byte routing (standard MELSEC) vs 4-byte routing (legacy)
+                total_len = None
+                if len(buf) >= 13:
+                    cmd_5 = struct.unpack_from("<H", buf, 11)[0]
+                    cmd_4 = struct.unpack_from("<H", buf, 10)[0]
+                    if cmd_5 in KNOWN_3E_COMMANDS:
+                        data_len = struct.unpack_from("<H", buf, 7)[0]
+                        total_len = 9 + data_len
+                    elif cmd_4 in KNOWN_3E_COMMANDS:
+                        data_len = struct.unpack_from("<H", buf, 6)[0]
+                        total_len = 8 + data_len
+
+                if total_len is None:
+                    # Heuristic check based on available length
+                    if len(buf) >= 9:
+                        dlen_5 = struct.unpack_from("<H", buf, 7)[0]
+                        dlen_4 = struct.unpack_from("<H", buf, 6)[0]
+                        if 2 <= dlen_4 <= len(buf) - 8:
+                            total_len = 8 + dlen_4
+                        elif 2 <= dlen_5 <= len(buf) - 9:
+                            total_len = 9 + dlen_5
+                        else:
+                            return None
+                    else:
+                        return None
+
                 if len(buf) < total_len:
                     return None
                 frame = bytes(buf[:total_len])
@@ -30,17 +61,33 @@ class McFrame3E(ProtocolHandler):
         if len(data) < 10:
             raise ValueError("Frame too short for 3E")
         req = ParsedRequest()
-        req.access_path = data[2:6]
-        req.data = b""
+        cmd_5 = struct.unpack_from("<H", data, 11)[0] if len(data) >= 13 else 0
+        cmd_4 = struct.unpack_from("<H", data, 10)[0] if len(data) >= 12 else 0
 
-        data_len = struct.unpack_from("<H", data, 6)[0]
-        timer = struct.unpack_from("<H", data, 8)[0]
+        if cmd_5 in KNOWN_3E_COMMANDS:
+            req.access_path = data[2:7]
+            data_len = struct.unpack_from("<H", data, 7)[0]
+            timer = struct.unpack_from("<H", data, 9)[0]
+            cmd_data = data[11:11 + data_len - 2]
+        elif cmd_4 in KNOWN_3E_COMMANDS:
+            req.access_path = data[2:6]
+            data_len = struct.unpack_from("<H", data, 6)[0]
+            timer = struct.unpack_from("<H", data, 8)[0]
+            cmd_data = data[10:10 + data_len - 2]
+        elif len(data) >= 9 and struct.unpack_from("<H", data, 7)[0] + 9 == len(data):
+            req.access_path = data[2:7]
+            data_len = struct.unpack_from("<H", data, 7)[0]
+            timer = struct.unpack_from("<H", data, 9)[0]
+            cmd_data = data[11:11 + data_len - 2]
+        else:
+            req.access_path = data[2:6]
+            data_len = struct.unpack_from("<H", data, 6)[0]
+            timer = struct.unpack_from("<H", data, 8)[0]
+            cmd_data = data[10:10 + data_len - 2]
 
-        cmd_data = data[10:10 + data_len - 2]  # subtract timer bytes
         req.command = struct.unpack_from("<H", cmd_data, 0)[0]
         req.subcommand = struct.unpack_from("<H", cmd_data, 2)[0]
         req.data = cmd_data[4:] if len(cmd_data) >= 4 else b""
-
         if req.command in (0x0401, 0x1401):
             device_data = cmd_data[4:]
             dev_type, dev_addr = parse_device_mc(device_data[:4])
@@ -69,9 +116,14 @@ class McFrame3E(ProtocolHandler):
         resp_data = end_code + result.data
         data_len = struct.pack("<H", len(resp_data))
 
+        access_path = (
+            parsed.access_path
+            if parsed is not None and getattr(parsed, "access_path", None)
+            else b"\x00\x00\x00\x00"
+        )
         resp = (
             self.SUBHEADER_RESPONSE
-            + (parsed.access_path if parsed is not None else b"\x00\x00\x00\x00")
+            + access_path
             + data_len
             + resp_data
         )

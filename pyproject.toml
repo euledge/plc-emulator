@@ -36,6 +36,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-playwright>=0.8.0",
+    "slmp-connect-python>=1.2.1",
 ]
 
 [tool.pytest.ini_options]

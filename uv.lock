@@ -355,6 +355,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-playwright" },
+    { name = "slmp-connect-python" },
 ]
 
 [package.metadata]
@@ -371,6 +372,7 @@ dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "pytest-playwright", specifier = ">=0.8.0" },
+    { name = "slmp-connect-python", specifier = ">=1.2.1" },
 ]
 
 [[package]]
@@ -630,6 +632,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "slmp-connect-python"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/c8/b1e19fa251c7457b5b6bc7033f413d0ee7a1ce473267b78ab83a3c19c004/slmp_connect_python-1.2.1.tar.gz", hash = "sha256:2b554427e8268e2f5b8553921177162e88f1daa06480be8bbe7c7bfc7a1c1b57", size = 96538, upload-time = "2026-07-06T09:27:27.757Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/75/9d73d358e64510b28bd4fab2cb7dab2207997f0e7485cbf3ebd02d3dd0a5/slmp_connect_python-1.2.1-py3-none-any.whl", hash = "sha256:d6525ce7d9ad2061c0df44b713b39ebca804c264ab684e9fc3256b5f16604144", size = 98431, upload-time = "2026-07-06T09:27:24.824Z" },
 ]
 
 [[package]]
