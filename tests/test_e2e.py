@@ -326,3 +326,136 @@ def test_script_editor_load_preset_template(page, server_url):
     # Preset template list is distinctively displayed
     assert page.locator("#template_list").is_visible()
     assert "traffic_light.yaml" in page.locator("#template_list").text_content()
+
+
+def test_device_monitor_all_tab_and_multi_devices_coexistence(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_selector("#mon_add", timeout=5000)
+
+    # 1. ALL tab should be active by default
+    all_tab = page.locator(".device-tab[data-dev='ALL']")
+    assert "active" in all_tab.get_attribute("class")
+
+    # 2. Add D 0 (points = 1)
+    page.locator("#mon_device").select_option("D")
+    page.locator("#mon_address").fill("0")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 1", timeout=5000)
+
+    # 3. Add M 1 while on ALL tab
+    page.locator("#mon_device").select_option("M")
+    page.locator("#mon_address").fill("1")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 2", timeout=5000)
+
+    # Both D 0 and M 1 are displayed on the ALL tab simultaneously without overwriting!
+    table_text = page.locator("#mon_table").inner_text()
+    assert "D" in table_text
+    assert "M" in table_text
+    assert "0" in table_text
+    assert "1" in table_text
+
+    # 4. Filter by D tab
+    page.locator(".device-tab[data-dev='D']").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 1", timeout=5000)
+    d_dev = page.locator("#mon_table tr td").first.text_content()
+    assert d_dev == "D"
+
+    # 5. Filter by M tab
+    page.locator(".device-tab[data-dev='M']").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 1", timeout=5000)
+    m_dev = page.locator("#mon_table tr td").first.text_content()
+    assert m_dev == "M"
+
+    # 6. Return to ALL tab
+    page.locator(".device-tab[data-dev='ALL']").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 2", timeout=5000)
+    all_text = page.locator("#mon_table").inner_text()
+    assert "D" in all_text
+    assert "M" in all_text
+
+
+def test_device_monitor_add_multiple_addresses_via_points(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_selector("#mon_add", timeout=5000)
+
+    # Add D100 with points = 5 -> D100, D101, D102, D103, D104
+    page.locator("#mon_device").select_option("D")
+    page.locator("#mon_address").fill("100")
+    page.locator("#mon_points").fill("5")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 5", timeout=5000)
+
+    table_text = page.locator("#mon_table").inner_text()
+    for addr in ("100", "101", "102", "103", "104"):
+        assert addr in table_text
+
+    # Deduplication: Re-adding D100 with HEX format does not add a 6th row
+    page.locator("#mon_address").fill("100")
+    page.locator("#mon_points").fill("1")
+    page.locator("#mon_format").select_option("HEX")
+    page.locator("#mon_add").click()
+    page.wait_for_timeout(300)
+
+    # Row count remains 5
+    row_count = page.locator("#mon_table tr").count()
+    assert row_count == 5
+
+
+def test_clear_all_removes_rows_and_clears_memory(page, server_url, api):
+    api.put("/api/devices/D/0", json={"value": 1234})
+    api.put("/api/devices/D/1", json={"value": 5678})
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_selector("#mon_add", timeout=5000)
+
+    # Add D0 and D1
+    page.locator("#mon_device").select_option("D")
+    page.locator("#mon_address").fill("0")
+    page.locator("#mon_points").fill("2")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 2", timeout=5000)
+    assert page.locator("#mon_table tr").count() == 2
+
+    # Click Clear All
+    page.locator("#mon_clear").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr td').length === 1", timeout=5000)
+
+    table_text = page.locator("#mon_table").inner_text()
+    assert "No devices monitored" in table_text
+
+    # Verify memory is reset to 0 in backend
+    resp = api.get("/api/devices/D?start=0&count=2")
+    assert resp.json()["values"] == [0, 0]
+
+    # Add new device after clear
+    page.locator("#mon_address").fill("10")
+    page.locator("#mon_points").fill("1")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 1", timeout=5000)
+    new_text = page.locator("#mon_table").inner_text()
+    assert "10" in new_text
+
+
+def test_clear_all_cancel_retains_rows(page, server_url):
+    page.on("dialog", lambda dialog: dialog.dismiss())
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_selector("#mon_add", timeout=5000)
+
+    # Add D0
+    page.locator("#mon_device").select_option("D")
+    page.locator("#mon_address").fill("0")
+    page.locator("#mon_add").click()
+    page.wait_for_function("document.querySelectorAll('#mon_table tr').length === 1", timeout=5000)
+
+    # Click Clear All and dismiss
+    page.locator("#mon_clear").click()
+    page.wait_for_timeout(300)
+
+    # Row still retained
+    assert page.locator("#mon_table tr").count() == 1

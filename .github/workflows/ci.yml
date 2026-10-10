@@ -31,7 +31,7 @@ jobs:
         run: uv run pytest --ignore=tests/test_e2e.py -v
 
       - name: Install Playwright browsers
-        run: uv run playwright install chromium
+        run: uv run playwright install --with-deps chromium
 
       - name: Run E2E tests
         run: uv run pytest tests/test_e2e.py -v
