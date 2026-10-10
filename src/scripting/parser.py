@@ -1,6 +1,7 @@
 import ast
 import re
 import yaml
+from src.device.device_definition import DeviceType, get_device_type
 from src.scripting.evaluator import SafeEvaluator
 
 DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -164,6 +165,40 @@ class ScriptParser:
             errors.append(f"{prefix} {label}: invalid target '{target}'")
         if "value" not in action and "expr" not in action:
             errors.append(f"{prefix} {label}: action must have either 'value' or 'expr'")
+        data_type = action.get("data_type")
+        if data_type is not None:
+            if not isinstance(data_type, str) or data_type.lower() not in {"dword", "long", "float32", "ascii"}:
+                errors.append(f"{prefix} {label}: unsupported 'data_type'")
+            else:
+                data_type = data_type.lower()
+                match = DEVICE_PATTERN.match(target) if isinstance(target, str) else None
+                if match and get_device_type(match.group(1).upper()) == DeviceType.BIT:
+                    errors.append(f"{prefix} {label}: typed values require a word device")
+                if data_type == "ascii":
+                    if "expr" in action:
+                        errors.append(f"{prefix} {label}: ascii requires a string 'value'")
+                    if "value" in action and not isinstance(action["value"], str):
+                        errors.append(f"{prefix} {label}: ascii 'value' must be a string")
+                elif "value" in action:
+                    value = action["value"]
+                    if data_type in {"dword", "long"}:
+                        if isinstance(value, bool) or not isinstance(value, int):
+                            errors.append(f"{prefix} {label}: {data_type} 'value' must be an integer")
+                        elif data_type == "dword" and not 0 <= value <= 0xFFFFFFFF:
+                            errors.append(f"{prefix} {label}: dword 'value' is out of range")
+                        elif data_type == "long" and not -0x80000000 <= value <= 0x7FFFFFFF:
+                            errors.append(f"{prefix} {label}: long 'value' is out of range")
+                    elif isinstance(value, bool) or not isinstance(value, (int, float)):
+                        errors.append(f"{prefix} {label}: numeric typed 'value' must be a number")
+                if "length" in action:
+                    if data_type != "ascii":
+                        errors.append(f"{prefix} {label}: 'length' is only valid for ascii")
+                    elif not isinstance(action["length"], int) or action["length"] <= 0:
+                        errors.append(f"{prefix} {label}: ascii 'length' must be positive")
+                    elif "value" in action and isinstance(action["value"], str) and len(action["value"]) > action["length"]:
+                        errors.append(f"{prefix} {label}: ascii value must fit 'length'")
+        elif "length" in action:
+            errors.append(f"{prefix} {label}: 'length' requires a typed ascii value")
         if "expr" in action:
             expr_str = action["expr"]
             if not isinstance(expr_str, str):

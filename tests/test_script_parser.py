@@ -84,3 +84,46 @@ scripts:
 def test_invalid_yaml():
     with pytest.raises(ValueError, match="YAML"):
         ScriptParser.parse("invalid: [yaml: broken")
+def test_validate_typed_value_actions():
+    valid = """
+type: sequence
+name: typed
+steps:
+  - wait_ms: 0
+    actions:
+      - target: D100
+        value: 100000
+        data_type: dword
+      - target: D110
+        value: PLC
+        data_type: ascii
+        length: 8
+"""
+    ok, errors = ScriptParser.validate_content(valid)
+    assert ok, errors
+
+
+@pytest.mark.parametrize(
+    ("action", "message"),
+    [
+        ({"target": "D100", "value": 1, "data_type": "word"}, "unsupported"),
+        ({"target": "M0", "value": 1, "data_type": "dword"}, "word device"),
+        ({"target": "D100", "value": 1.5, "data_type": "dword"}, "must be an integer"),
+        ({"target": "D100", "value": 0x100000000, "data_type": "dword"}, "out of range"),
+        ({"target": "D100", "value": -0x80000001, "data_type": "long"}, "out of range"),
+        ({"target": "D100", "value": 1, "data_type": "ascii"}, "string"),
+        ({"target": "D100", "value": "PLC", "data_type": "ascii", "length": 2}, "fit"),
+        ({"target": "D100", "value": 1, "data_type": "long", "length": 2}, "only valid"),
+    ],
+)
+def test_validate_typed_value_errors(action, message):
+    content = {
+        "type": "sequence",
+        "name": "invalid",
+        "steps": [{"wait_ms": 0, "actions": [action]}],
+    }
+    import yaml
+
+    ok, errors = ScriptParser.validate_content(yaml.safe_dump(content))
+    assert not ok
+    assert any(message in error for error in errors)

@@ -68,11 +68,31 @@ scripts:
 | `actions` | list | **必須** | - | 実行するアクションのリスト |
 | `name` | string | 任意 | `"unnamed"` | スクリプトの識別名 |
 
-#### アクションのキー仕様
 - `target`: 書き込み先デバイス名（例: `D100`, `M0`, `Y10`）
-- `value`: 直接設定する固定値（数値）
+- `value`: 直接設定する値。通常のワード書き込みは数値、型付きASCIIは文字列
 - `expr`: 評価式文字列（`value` または `expr` のいずれか一方を指定）
+- `data_type`: 任意の型付きワード書き込み（`dword`, `long`, `float32`, `ascii`）
+- `length`: `data_type: ascii` の固定長（文字数）。不足分はNULで埋める
 
+型付き値はリトルエンディアンで連続する16ビットワードへ格納します。`dword` は符号なし32ビット整数、`long` は符号付き32ビット整数、`float32` はIEEE 754単精度浮動小数点です。`ascii` は1文字目を下位バイトへ格納し、奇数バイトの末尾はNULで補います。型付き値はワードデバイスにのみ指定できます。
+
+```yaml
+name: typed_values
+type: sequence
+steps:
+  - wait_ms: 0
+    actions:
+      - target: D300
+        value: 100000
+        data_type: dword
+      - target: D310
+        value: -12.5
+        data_type: float32
+      - target: D320
+        value: PLC
+        data_type: ascii
+        length: 8
+```
 #### 実例
 ```yaml
 name: periodic_sensor
