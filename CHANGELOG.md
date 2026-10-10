@@ -28,6 +28,7 @@ All notable changes to PLCEmulator, tracked by release date.
 - Enforced 1-client exclusive TCP connection policy (#9).
 - Handled graceful PLC server shutdown upon unexpected web server termination (#3).
 - Fixed script editor requiring prior manual save to start newly written scripts (#62).
+- Automatically stop other running scripts when starting a new script to prevent device memory contention (#64).
 
 ## June 20, 2026 — v0.1.0
 

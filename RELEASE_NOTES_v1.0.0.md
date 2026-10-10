@@ -90,6 +90,7 @@ PLCEmulator v1.0.0 marks our first major production-stable release. Following ex
 - **Enforced 1-Client TCP Connection Policy (#9)**: Protects active sessions by immediately closing secondary connections.
 - **Graceful Server Shutdown (#3)**: Prevents duplicate cleanup on unexpected exit.
 - **Direct Start from Unsaved Script Editor Content (#62)**: Allows immediately starting newly written scripts directly from the editor with automatic saving and default naming, transitioning state to `running`.
+- **Exclusive Script Execution on Start (#64)**: Automatically stops previously running scripts when starting a new script from the Web UI to eliminate device memory contention and flipping values, and adds a "Stop All" button.
 
 ---
 
