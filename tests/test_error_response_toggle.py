@@ -27,7 +27,7 @@ class UdpClientProtocol(asyncio.DatagramProtocol):
 
 @pytest.mark.asyncio
 async def test_error_response_toggle_via_api():
-    cfg = ConfigManager()
+    cfg = ConfigManager(port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     try:

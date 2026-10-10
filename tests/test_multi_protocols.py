@@ -323,7 +323,7 @@ async def test_udp_unrelated_garbage_ignored():
 # ---------------- Live Web API dynamic protocol switching ----------------
 @pytest.mark.asyncio
 async def test_dynamic_protocol_switching_via_web_api():
-    cfg = ConfigManager(protocol="3E", transport="tcp")
+    cfg = ConfigManager(protocol="3E", transport="tcp", port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start_plc_server()
     try:

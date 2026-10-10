@@ -19,7 +19,7 @@ def cleanup_script(name: str):
 
 @pytest.mark.asyncio
 async def test_validate_valid_scripts():
-    cfg = ConfigManager()
+    cfg = ConfigManager(port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     try:
@@ -69,7 +69,7 @@ async def test_validate_valid_scripts():
 
 @pytest.mark.asyncio
 async def test_validate_yaml_syntax_error():
-    cfg = ConfigManager()
+    cfg = ConfigManager(port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     try:
@@ -93,7 +93,7 @@ async def test_validate_yaml_syntax_error():
 
 @pytest.mark.asyncio
 async def test_validate_unsafe_expression():
-    cfg = ConfigManager()
+    cfg = ConfigManager(port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     try:
@@ -143,7 +143,7 @@ async def test_validate_unsafe_expression():
 
 @pytest.mark.asyncio
 async def test_validate_invalid_device_or_structure():
-    cfg = ConfigManager()
+    cfg = ConfigManager(port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     try:
@@ -178,7 +178,7 @@ async def test_validate_invalid_device_or_structure():
 
 @pytest.mark.asyncio
 async def test_start_invalid_script_is_blocked():
-    cfg = ConfigManager()
+    cfg = ConfigManager(port=0)
     app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1")
     await app.start()
     bad_name = "test_bad.yaml"
