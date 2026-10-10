@@ -39,6 +39,8 @@ class LatencyConfigUpdate(BaseModel):
 
 class ScriptContent(BaseModel):
     content: str
+class ScriptStartRequest(BaseModel):
+    content: str | None = None
 
 
 class ScriptValidationRequest(BaseModel):
@@ -296,6 +298,8 @@ def get_script_template(name: str):
 
 @router.get("/scripts/{name}")
 def get_script(name: str):
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
     path = SCRIPTS_DIR / name
     if not path.exists() or path.suffix not in (".yaml", ".yml"):
         raise HTTPException(404, "Script not found")
@@ -305,6 +309,8 @@ def get_script(name: str):
 @router.put("/scripts/{name}")
 def save_script(name: str, data: ScriptContent):
     SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
     if ".." in name or "/" in name or "\\" in name:
         raise HTTPException(400, "Invalid script name")
     path = SCRIPTS_DIR / name
@@ -325,6 +331,8 @@ def validate_script_endpoint(req: ScriptValidationRequest):
 
 @router.get("/scripts/{name}/status")
 def get_script_status(name: str, request: Request):
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
     state = get_state(request)
     engine = state.script_engines.get(name)
     if engine is None or not engine.running:
@@ -337,12 +345,20 @@ def get_script_status(name: str, request: Request):
 
 
 @router.post("/scripts/{name}/start")
-async def start_script(name: str, request: Request):
+async def start_script(name: str, request: Request, data: ScriptStartRequest = ScriptStartRequest()):
     state = get_state(request)
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
+    if ".." in name or "/" in name or "\\" in name:
+        raise HTTPException(400, "Invalid script name")
+
     path = SCRIPTS_DIR / name
+    if data.content is not None and data.content.strip():
+        SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(data.content, encoding="utf-8")
+
     if not path.exists():
         raise HTTPException(404, "Script not found")
-
     existing = state.script_engines.get(name)
     if existing is not None:
         if existing.running and existing.paused:
@@ -372,6 +388,8 @@ async def start_script(name: str, request: Request):
 
 @router.post("/scripts/{name}/pause")
 async def pause_script(name: str, request: Request):
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
     state = get_state(request)
     engine = state.script_engines.get(name)
     if engine is None or not engine.running:
@@ -382,6 +400,8 @@ async def pause_script(name: str, request: Request):
 
 @router.post("/scripts/{name}/resume")
 async def resume_script(name: str, request: Request):
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
     state = get_state(request)
     engine = state.script_engines.get(name)
     if engine is None or not engine.running:
@@ -392,6 +412,8 @@ async def resume_script(name: str, request: Request):
 
 @router.post("/scripts/{name}/stop")
 async def stop_script(name: str, request: Request):
+    if not name.endswith((".yaml", ".yml")):
+        name = f"{name}.yaml"
     state = get_state(request)
     engine = state.script_engines.pop(name, None)
     if engine is not None:

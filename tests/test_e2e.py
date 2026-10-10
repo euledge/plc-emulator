@@ -459,3 +459,38 @@ def test_clear_all_cancel_retains_rows(page, server_url):
 
     # Row still retained
     assert page.locator("#mon_table tr").count() == 1
+
+
+def test_script_editor_direct_start_without_prior_save(page, server_url):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='scripts']").click()
+    page.wait_for_selector("#script_editor", timeout=5000)
+
+    # User clicks New script
+    page.locator("#script_new").click()
+
+    # User types YAML directly into editor (with name left blank)
+    user_yaml = "type: periodic\ninterval_ms: 1000\nactions:\n  - target: D100\n    value: 99\n"
+    page.locator("#script_editor").fill(user_yaml)
+
+    # User clicks Start directly without manually clicking Save first
+    page.locator("#script_start").click()
+
+    # Status must transition to running!
+    page.wait_for_function(
+        "document.getElementById('script_status') && document.getElementById('script_status').textContent === 'running'",
+        timeout=5000
+    )
+    status_text = page.locator("#script_status").text_content()
+    assert status_text == "running"
+
+    # Clean up: stop the running script
+    page.locator("#script_stop").click()
+    page.wait_for_function(
+        "document.getElementById('script_status') && document.getElementById('script_status').textContent === 'stopped'",
+        timeout=5000
+    )
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / "scripts" / "untitled.yaml"
+    if p.exists():
+        p.unlink()

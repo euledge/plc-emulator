@@ -140,8 +140,14 @@ const ScriptEditor = {
   },
 
   async saveScript() {
-    const name = document.getElementById('script_name').value.trim();
-    if (!name) return;
+    let name = document.getElementById('script_name').value.trim();
+    if (!name) {
+      name = 'untitled.yaml';
+      document.getElementById('script_name').value = name;
+    } else if (!name.endsWith('.yaml') && !name.endsWith('.yml')) {
+      name = `${name}.yaml`;
+      document.getElementById('script_name').value = name;
+    }
     const content = document.getElementById('script_editor').value;
     await fetch(`/api/scripts/${encodeURIComponent(name)}`, {
       method: 'PUT',
@@ -186,24 +192,45 @@ const ScriptEditor = {
   },
 
   async startScript() {
-    const name = document.getElementById('script_name').value.trim();
-    if (!name) return;
+    let name = document.getElementById('script_name').value.trim();
+    if (!name) {
+      name = 'untitled.yaml';
+      document.getElementById('script_name').value = name;
+    } else if (!name.endsWith('.yaml') && !name.endsWith('.yml')) {
+      name = `${name}.yaml`;
+      document.getElementById('script_name').value = name;
+    }
+    const content = document.getElementById('script_editor').value;
     const valid = await this.validateScript();
     if (valid === false) return;
-    await fetch(`/api/scripts/${encodeURIComponent(name)}/start`, { method: 'POST' });
+
+    await this.saveScript();
+
+    const resp = await fetch(`/api/scripts/${encodeURIComponent(name)}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      alert(err.detail || 'Failed to start script');
+    }
+    this.current = name;
     await this.refreshStatus();
   },
 
   async pauseScript() {
-    const name = document.getElementById('script_name').value.trim();
+    let name = document.getElementById('script_name').value.trim() || this.current;
     if (!name) return;
+    if (!name.endsWith('.yaml') && !name.endsWith('.yml')) name = `${name}.yaml`;
     await fetch(`/api/scripts/${encodeURIComponent(name)}/pause`, { method: 'POST' });
     await this.refreshStatus();
   },
 
   async stopScript() {
-    const name = document.getElementById('script_name').value.trim();
+    let name = document.getElementById('script_name').value.trim() || this.current;
     if (!name) return;
+    if (!name.endsWith('.yaml') && !name.endsWith('.yml')) name = `${name}.yaml`;
     await fetch(`/api/scripts/${encodeURIComponent(name)}/stop`, { method: 'POST' });
     await this.refreshStatus();
   },
@@ -218,11 +245,12 @@ const ScriptEditor = {
   },
 
   async refreshStatus() {
-    const name = document.getElementById('script_name').value.trim();
+    let name = document.getElementById('script_name').value.trim() || this.current;
     if (!name) {
       this.setStatus('stopped');
       return;
     }
+    if (!name.endsWith('.yaml') && !name.endsWith('.yml')) name = `${name}.yaml`;
     try {
       const resp = await fetch(`/api/scripts/${encodeURIComponent(name)}/status`);
       if (resp.ok) {
