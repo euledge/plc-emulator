@@ -462,3 +462,101 @@ async def test_latency_endpoint_and_settings_report_the_same_live_behavior():
         writer.close()
         await writer.wait_closed()
         await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_dynamic_tcp_port_change_and_communication():
+    """Verify that switching TCP port closes old port and serves requests on new port."""
+    import socket
+
+    # Pick a free ephemeral port
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.bind(("127.0.0.1", 0))
+    new_target_port = probe.getsockname()[1]
+    probe.close()
+
+    cfg = ConfigManager()
+    cfg.port = 0
+    cfg.transport = "tcp"
+    app = PLCEmulatorApp(config=cfg, web_port=0, web_host="127.0.0.1", config_path=None)
+    await app.start_plc_server()
+    initial_port = app.server.port
+
+    try:
+        # 1. Connect on initial port and verify communication
+        r1, w1 = await asyncio.open_connection("127.0.0.1", initial_port)
+        w1.write(make_3e_cpu_type_req())
+        await w1.drain()
+        resp1 = await asyncio.wait_for(r1.read(1024), timeout=2.0)
+        assert b"Q03UDE" in resp1
+        w1.close()
+        await w1.wait_closed()
+
+        # 2. Change port to new_target_port via Web API
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app.web_app), base_url="http://test"
+        ) as client:
+            resp = await client.put("/api/config", json={"port": new_target_port})
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["port"] == new_target_port
+            assert body["active_port"] == new_target_port
+            assert app.server.port == new_target_port
+
+            cfg_resp = await client.get("/api/config")
+            assert cfg_resp.json()["active_port"] == new_target_port
+
+        # 3. Old port should now refuse connections
+        with pytest.raises(OSError):
+            await asyncio.open_connection("127.0.0.1", initial_port)
+
+        # 4. New port should accept connections and respond correctly
+        r2, w2 = await asyncio.open_connection("127.0.0.1", new_target_port)
+        try:
+            w2.write(make_3e_cpu_type_req())
+            await w2.drain()
+            resp2 = await asyncio.wait_for(r2.read(1024), timeout=2.0)
+            assert b"Q03UDE" in resp2
+        finally:
+            w2.close()
+            await w2.wait_closed()
+    finally:
+        await app.stop_plc_server()
+
+
+@pytest.mark.asyncio
+async def test_config_persistence_across_app_restart(tmp_path):
+    """Verify that settings saved via API persist to file and reload on app startup."""
+    import socket
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.bind(("127.0.0.1", 0))
+    persisted_port = probe.getsockname()[1]
+    probe.close()
+
+    cfg_file = tmp_path / "test_config.json"
+
+    # 1. Start initial app instance and save config
+    app1 = PLCEmulatorApp(config_path=cfg_file, web_port=0, web_host="127.0.0.1")
+    await app1.start_plc_server()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app1.web_app), base_url="http://test"
+        ) as client:
+            resp = await client.put(
+                "/api/config", json={"port": persisted_port, "protocol": "4E"}
+            )
+            assert resp.status_code == 200
+            assert cfg_file.exists()
+    finally:
+        await app1.stop_plc_server()
+
+    # 2. Start second app instance with same config_path and verify it reloaded settings
+    app2 = PLCEmulatorApp(config_path=cfg_file, web_port=0, web_host="127.0.0.1")
+    assert app2.config.port == persisted_port
+    assert app2.config.protocol == "4E"
+    await app2.start_plc_server()
+    try:
+        assert app2.server.port == persisted_port
+    finally:
+        await app2.stop_plc_server()

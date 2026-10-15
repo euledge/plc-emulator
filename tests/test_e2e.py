@@ -82,6 +82,15 @@ def test_switch_to_scripts(page, server_url):
     assert scripts.is_visible()
 
 
+def test_settings_no_console_errors(page, server_url):
+    errors = []
+    page.on("pageerror", lambda err: errors.append(err.message))
+    page.goto(server_url)
+    page.wait_for_selector("#port", timeout=5000)
+    page.wait_for_timeout(300)
+    assert errors == []
+
+
 def test_settings_load_config(page, server_url):
     page.goto(server_url)
     port_input = page.locator("#port")
@@ -89,6 +98,41 @@ def test_settings_load_config(page, server_url):
     page.wait_for_function("document.getElementById('port').value !== ''", timeout=5000)
     val = port_input.input_value()
     assert val == "5000"
+    active_display = page.locator("#active_port_display")
+    assert active_display.is_visible()
+    assert active_display.text_content() == "5000"
+
+
+def test_settings_port_change_and_active_display(page, server_url, api):
+    page.goto(server_url)
+    page.wait_for_selector("#port", timeout=5000)
+    page.wait_for_timeout(500)
+
+    # Change port to 5002 and save
+    page.locator("#port").fill("5002")
+    page.locator("#save_config").click()
+    page.wait_for_function(
+        "document.getElementById('server_status').textContent === 'Saved'", timeout=5000
+    )
+    page.wait_for_function(
+        "document.getElementById('active_port_display').textContent === '5002'", timeout=5000
+    )
+    resp = api.get("/api/config")
+    assert resp.json()["port"] == 5002
+    assert resp.json()["active_port"] == 5002
+
+    # Restore port back to 5000
+    page.locator("#port").fill("5000")
+    page.locator("#save_config").click()
+    page.wait_for_function(
+        "document.getElementById('server_status').textContent === 'Saved'", timeout=5000
+    )
+    page.wait_for_function(
+        "document.getElementById('active_port_display').textContent === '5000'", timeout=5000
+    )
+    resp = api.get("/api/config")
+    assert resp.json()["port"] == 5000
+    assert resp.json()["active_port"] == 5000
 
 
 def test_settings_save_changes(page, server_url, api):

@@ -2,6 +2,17 @@
 
 All notable changes to PLCEmulator, tracked by release date.
 
+## Unreleased
+
+### ⚡ Improved
+
+- **Config Persistence & Active Port Indicator** — Web settings changes (including PLC port) are now automatically saved to `saves/config.json` and reloaded upon app startup. Added real-time active PLC port indicator in the Web Settings UI and `/api/config` (#70).
+- **Dynamic Port Switching Coverage** — Added integration and E2E tests validating runtime TCP port changes and communication (#70).
+
+### 🐛 Fixed
+
+- **Settings Page Error** — Fixed an unhandled `ReferenceError: params is not defined` occurring on Web settings page load (#70).
+
 ## October 10, 2026 — v1.0.0
 
 ### ✨ New

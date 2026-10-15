@@ -97,8 +97,19 @@ class AppState:
         config: ConfigManager | None = None,
         device_manager: DeviceManager | None = None,
         latency: LatencyEmulator | None = None,
+        config_path: str | Path | None = None,
     ) -> None:
-        self.config = config or ConfigManager()
+        self.config_path = Path(config_path) if config_path else None
+        if config is None:
+            if self.config_path and self.config_path.exists():
+                try:
+                    self.config = ConfigManager.load_from_file(self.config_path)
+                except Exception:
+                    self.config = ConfigManager()
+            else:
+                self.config = ConfigManager()
+        else:
+            self.config = config
         self.config_lock = asyncio.Lock()
         model = PLC_MODELS.get(self.config.plc_model)
         self.device_manager = device_manager or DeviceManager(plc_model=model)
@@ -182,10 +193,10 @@ class AppState:
                     asyncio.run_coroutine_threadsafe(self.ws_manager.broadcast(msg), loop)
             except RuntimeError:
                 asyncio.run_coroutine_threadsafe(self.ws_manager.broadcast(msg), loop)
-def create_app(state: AppState | None = None) -> FastAPI:
+def create_app(state: AppState | None = None, config_path: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="PLCEmulator")
     if state is None:
-        state = AppState()
+        state = AppState(config_path=config_path)
     app.state.state = state
     app.include_router(router)
 

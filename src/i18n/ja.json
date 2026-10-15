@@ -11,6 +11,7 @@
   "config.protocol": "プロトコル",
   "config.transport": "通信方式",
   "config.port": "ポート番号",
+  "config.active_port": "稼働中",
   "config.format": "データ形式",
   "config.plc_model": "PLC機種",
   "config.error_response": "エラー応答",
