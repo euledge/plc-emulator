@@ -2,6 +2,12 @@
 
 All notable changes to PLCEmulator, tracked by release date.
 
+## Unreleased
+
+### ⚡ Improved
+
+- **Hexadecimal Device Addressing** — Added full support for hexadecimal address representation across HEX devices (`W`, `X`, `Y`, `B`, `SW`, `SB`) in Script YAML DSL, SafeEvaluator expressions, and Web UI Device Monitor in conformance with MELSEC standard specifications (#72).
+
 ## October 10, 2026 — v1.0.0
 
 ### ✨ New

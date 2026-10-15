@@ -142,6 +142,39 @@ def test_device_monitor_add_and_edit_device(page, server_url, api):
     assert resp.json()["values"] == [9876]
 
 
+def test_device_monitor_hex_device_add_and_display(page, server_url, api):
+    page.goto(server_url)
+    page.locator(".nav-link[data-page='monitor']").click()
+    page.wait_for_function("document.getElementById('mon_add') !== null", timeout=5000)
+
+    # Select W device
+    page.locator("#mon_device").select_option("W")
+    addr_input = page.locator("#mon_address")
+    placeholder = addr_input.get_attribute("placeholder") or ""
+    assert "HEX" in placeholder
+
+    # Add W100 (hex 100 = decimal 256)
+    addr_input.fill("100")
+    page.locator("#mon_add").click()
+    table = page.locator("#mon_table")
+    assert "W" in table.text_content()
+    assert "100" in table.text_content()
+
+    # Updating address 256 via API should update the row for W100
+    api.put("/api/devices/W/256", json={"value": 7777})
+    page.wait_for_function(
+        "Array.from(document.querySelectorAll('#mon_table td')).some(td => td.textContent.includes('7777'))",
+        timeout=5000,
+    )
+
+    # Select X device and add X1F
+    page.locator("#mon_device").select_option("X")
+    addr_input.fill("1F")
+    page.locator("#mon_add").click()
+    assert "X" in table.text_content()
+    assert "1F" in table.text_content()
+
+
 def test_device_monitor_tab_switching(page, server_url):
     page.goto(server_url)
     page.locator(".nav-link[data-page='monitor']").click()

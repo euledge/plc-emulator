@@ -1,11 +1,24 @@
 import ast
 import re
 import yaml
-from src.device.device_definition import DeviceType, get_device_type
+from src.device.device_definition import DeviceType, get_device_type, parse_device_address
 from src.scripting.evaluator import SafeEvaluator
 
-DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
+DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)([0-9A-Fa-f]+)$")
 class ScriptParser:
+
+    @classmethod
+    def _validate_target_string(cls, target: object) -> tuple[bool, str | None, DeviceType | None]:
+        if not target or not isinstance(target, str):
+            return False, "must be a string", None
+        try:
+            dev_type, addr = parse_device_address(target)
+        except ValueError as e:
+            return False, str(e), None
+        dtype = get_device_type(dev_type)
+        if dtype is None:
+            return False, f"unknown device type '{dev_type}'", None
+        return True, None, dtype
 
     @classmethod
     def parse(cls, yaml_text: str) -> list[dict]:
@@ -105,8 +118,9 @@ class ScriptParser:
 
             elif stype == "ramp":
                 target = s.get("target")
-                if not target or not isinstance(target, str) or not DEVICE_PATTERN.match(target):
-                    errors.append(f"{prefix}: 'target' must be a valid device (e.g. D100)")
+                valid, err_msg, dtype = cls._validate_target_string(target)
+                if not valid:
+                    errors.append(f"{prefix}: 'target' must be a valid device (e.g. D100): invalid target '{target}'")
                 if "start_value" not in s or not isinstance(s["start_value"], (int, float)):
                     errors.append(f"{prefix}: 'start_value' must be a number")
                 if "end_value" not in s or not isinstance(s["end_value"], (int, float)):
@@ -161,8 +175,9 @@ class ScriptParser:
             errors.append(f"{prefix} {label}: action must be a dictionary")
             return
         target = action.get("target")
-        if not target or not isinstance(target, str) or not DEVICE_PATTERN.match(target):
-            errors.append(f"{prefix} {label}: invalid target '{target}'")
+        valid, err_msg, dtype = cls._validate_target_string(target)
+        if not valid:
+            errors.append(f"{prefix} {label}: invalid target '{target}': {err_msg}")
         if "value" not in action and "expr" not in action:
             errors.append(f"{prefix} {label}: action must have either 'value' or 'expr'")
         data_type = action.get("data_type")
@@ -171,8 +186,7 @@ class ScriptParser:
                 errors.append(f"{prefix} {label}: unsupported 'data_type'")
             else:
                 data_type = data_type.lower()
-                match = DEVICE_PATTERN.match(target) if isinstance(target, str) else None
-                if match and get_device_type(match.group(1).upper()) == DeviceType.BIT:
+                if dtype == DeviceType.BIT:
                     errors.append(f"{prefix} {label}: typed values require a word device")
                 if data_type == "ascii":
                     if "expr" in action:

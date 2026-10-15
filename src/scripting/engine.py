@@ -3,11 +3,9 @@ import math
 import re
 import struct
 import time
-from src.device.device_definition import get_device_type, DeviceType
+from src.device.device_definition import get_device_type, DeviceType, parse_device_address
 from src.device.device_manager import DeviceManager
 from src.scripting.evaluator import SafeEvaluator
-
-DEVICE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
 
 
 def _encode_typed_value(data_type: str, value, length: int | None = None) -> list[int]:
@@ -130,12 +128,10 @@ class ScriptEngine:
                 self._execute_action(action)
 
     async def _run_ramp(self, script: dict) -> None:
-        target = script["target"]
-        m = DEVICE_PATTERN.match(target)
-        if not m:
+        try:
+            dev_type, addr = parse_device_address(script["target"])
+        except ValueError:
             return
-        dev_type = m.group(1).upper()
-        addr = int(m.group(2))
         start_val = script["start_value"]
         end_val = script["end_value"]
         duration = script["duration_ms"] / 1000
@@ -203,11 +199,10 @@ class ScriptEngine:
         self._evaluator.tick += 1
 
     def _execute_action(self, action: dict) -> None:
-        m = DEVICE_PATTERN.match(action["target"])
-        if not m:
+        try:
+            dev_type, addr = parse_device_address(action["target"])
+        except ValueError:
             return
-        dev_type = m.group(1).upper()
-        addr = int(m.group(2))
 
         if "value" in action:
             val = action["value"]
