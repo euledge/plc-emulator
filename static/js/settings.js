@@ -16,6 +16,9 @@ const SettingsPage = {
           <div class="form-group">
             <label data-i18n="config.port">Port</label>
             <input type="number" id="port" min="0" max="65535">
+            <span style="font-size:0.8rem;color:var(--text-muted, #888);margin-top:0.25rem;display:inline-block;">
+              <span data-i18n="config.active_port">Active</span>: <strong id="active_port_display" style="color:var(--text-color, #eee);">-</strong>
+            </span>
           </div>
           <div class="form-group">
             <label data-i18n="config.format">Format</label>
@@ -83,10 +86,16 @@ const SettingsPage = {
     document.getElementById('protocol').value = cfg.protocol || '3E';
     document.getElementById('transport').value = (cfg.transport || 'tcp').toLowerCase();
     document.getElementById('port').value = cfg.port ?? 5000;
+    const activePort = cfg.active_port ?? cfg.port ?? 5000;
+    const activeDisplay = document.getElementById('active_port_display');
+    if (activeDisplay) {
+      activeDisplay.textContent = activePort;
+    }
     document.getElementById('data_format').value = (cfg.data_format || 'binary').toLowerCase();
     document.getElementById('plc_model').value = cfg.plc_model || 'Q03UDE';
     document.getElementById('latency_mode').value = cfg.latency_mode || 'none';
     document.getElementById('error_response_enabled').checked = cfg.error_response_enabled !== false;
+    const params = cfg.latency_params || {};
     document.getElementById('latency_delay').value = params.delay_ms ?? 0;
     document.getElementById('latency_min').value = params.min_ms ?? 0;
     document.getElementById('latency_max').value = params.max_ms ?? 0;
@@ -138,6 +147,7 @@ const SettingsPage = {
         return;
       }
       showStatus('Saved', false);
+      await this.loadConfig();
     } catch (error) {
       showStatus(`Save failed: ${error.message}`, true);
     }

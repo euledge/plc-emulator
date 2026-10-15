@@ -89,10 +89,20 @@ def validate_latency(mode: str, params: dict) -> None:
         raise HTTPException(400, "Latency timeout_rate must be at most 1")
 
 
+def format_config_dict(state) -> dict:
+    data = state.config.to_dict()
+    data["active_port"] = (
+        state.plc_server.port
+        if getattr(state, "plc_server", None) is not None
+        else state.config.port
+    )
+    return data
+
+
 @router.get("/config")
 def get_config(request: Request):
     state = get_state(request)
-    return state.config.to_dict()
+    return format_config_dict(state)
 
 
 @router.put("/config")
@@ -203,7 +213,13 @@ async def apply_config_update(state, update: ConfigUpdate):
             val = val.upper()
         setattr(state.config, key, val)
 
-    return state.config.to_dict()
+    if getattr(state, "config_path", None):
+        try:
+            state.config.save_to_file(state.config_path)
+        except Exception:
+            pass
+
+    return format_config_dict(state)
 
 
 @router.get("/devices/{device_type}")

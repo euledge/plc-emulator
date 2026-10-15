@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import socket
+from pathlib import Path
 from typing import TYPE_CHECKING
 import uvicorn
 
@@ -31,11 +32,13 @@ class PLCEmulatorApp:
         latency: LatencyEmulator | None = None,
         web_port: int = 8000,
         web_host: str = "127.0.0.1",
+        config_path: str | Path | None = Path("saves/config.json"),
     ) -> None:
         self.state = AppState(
             config=config,
             device_manager=device_manager,
             latency=latency,
+            config_path=config_path,
         )
         self.config = self.state.config
         self.device_manager = self.state.device_manager

@@ -11,6 +11,7 @@
   "config.protocol": "Protocol",
   "config.transport": "Transport",
   "config.port": "Port",
+  "config.active_port": "Active",
   "config.format": "Data Format",
   "config.plc_model": "PLC Model",
   "config.error_response": "Error Response",
