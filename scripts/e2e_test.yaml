@@ -1,5 +1,0 @@
-type: periodic
-interval_ms: 1000
-actions:
-  - target: D500
-    value: 99
