@@ -4,7 +4,7 @@ import re
 import time
 from src.scripting.builtins import BUILTIN_FUNCTIONS
 from src.device.device_manager import DeviceManager
-from src.device.device_definition import get_device_type, DeviceType
+from src.device.device_definition import get_device_type, DeviceType, parse_device_address
 
 ALLOWED_NODES = {
     ast.Expression, ast.Expr,
@@ -138,13 +138,14 @@ class SafeEvaluator:
             return self.delta
         elif name == "tick":
             return self.tick
-        m = DEVICE_PATTERN.match(name)
-        if m:
-            dev_type = m.group(1).upper()
-            addr = int(m.group(2))
+        try:
+            dev_type, addr = parse_device_address(name)
             dtype = get_device_type(dev_type)
-            if dtype == DeviceType.BIT:
-                return 1 if self.device_manager.read_bit(dev_type, addr) else 0
-            else:
-                return self.device_manager.read_word(dev_type, addr)
+            if dtype is not None:
+                if dtype == DeviceType.BIT:
+                    return 1 if self.device_manager.read_bit(dev_type, addr) else 0
+                else:
+                    return self.device_manager.read_word(dev_type, addr)
+        except ValueError:
+            pass
         raise ValueError(f"Unknown variable: {name}")

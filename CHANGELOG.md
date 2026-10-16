@@ -6,6 +6,7 @@ All notable changes to PLCEmulator, tracked by release date.
 
 ### ⚡ Improved
 
+- **Hexadecimal Device Addressing** — Added full support for hexadecimal address representation across HEX devices (`W`, `X`, `Y`, `B`, `SW`, `SB`) in Script YAML DSL, SafeEvaluator expressions, and Web UI Device Monitor in conformance with MELSEC standard specifications (#72).
 - **Config Persistence & Active Port Indicator** — Web settings changes (including PLC port) are now automatically saved to `saves/config.json` and reloaded upon app startup. Added real-time active PLC port indicator in the Web Settings UI and `/api/config` (#70).
 - **Dynamic Port Switching Coverage** — Added integration and E2E tests validating runtime TCP port changes and communication (#70).
 

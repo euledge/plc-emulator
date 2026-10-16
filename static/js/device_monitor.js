@@ -27,7 +27,7 @@ const DeviceMonitor = {
           </div>
           <div class="form-group">
             <label data-i18n="monitor.address">Address</label>
-            <input type="number" id="mon_address" value="0">
+            <input type="text" id="mon_address" value="0">
           </div>
           <div class="form-group">
             <label data-i18n="monitor.points">Points</label>
@@ -65,10 +65,12 @@ const DeviceMonitor = {
     document.getElementById('mon_add').addEventListener('click', () => this.addDevice());
     document.getElementById('mon_clear').addEventListener('click', () => this.clearAll());
     document.getElementById('mon_device').addEventListener('change', e => {
+      this.updateAddressPlaceholder(e.target.value);
       if (this.currentTab !== 'ALL') {
         this.selectTab(e.target.value);
       }
     });
+    this.updateAddressPlaceholder(document.getElementById('mon_device').value);
     document.getElementById('mon_address').addEventListener('keydown', e => {
       if (e.key === 'Enter') this.addDevice();
     });
@@ -84,12 +86,42 @@ const DeviceMonitor = {
   selectTab(dev) {
     this.currentTab = dev;
     const monDev = document.getElementById('mon_device');
-    if (monDev && dev !== 'ALL') monDev.value = dev;
+    if (monDev && dev !== 'ALL') {
+      monDev.value = dev;
+      this.updateAddressPlaceholder(dev);
+    }
     document.querySelectorAll('.device-tab').forEach(b => {
       if (b.dataset.dev === dev) b.classList.add('active');
       else b.classList.remove('active');
     });
     this.renderTable();
+  },
+
+  isHexDevice(dev) {
+    return ['X', 'Y', 'B', 'W', 'SB', 'SW'].includes((dev || '').toUpperCase());
+  },
+
+  updateAddressPlaceholder(dev) {
+    const addrInput = document.getElementById('mon_address');
+    if (!addrInput) return;
+    addrInput.placeholder = this.isHexDevice(dev) ? 'HEX (e.g. 100, 1F)' : 'DEC (e.g. 100)';
+  },
+
+  parseAddress(dev, val) {
+    const str = String(val || '').trim();
+    if (this.isHexDevice(dev)) {
+      const parsed = parseInt(str, 16);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    const parsed = parseInt(str, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  },
+
+  formatAddress(dev, addr) {
+    if (this.isHexDevice(dev)) {
+      return Number(addr).toString(16).toUpperCase();
+    }
+    return String(addr);
   },
 
   connectWs() {
@@ -150,7 +182,7 @@ const DeviceMonitor = {
 
   addDevice() {
     const dev = document.getElementById('mon_device').value;
-    const startAddr = parseInt(document.getElementById('mon_address').value) || 0;
+    const startAddr = this.parseAddress(dev, document.getElementById('mon_address').value);
     const pointsInput = document.getElementById('mon_points');
     const points = pointsInput ? Math.max(1, parseInt(pointsInput.value) || 1) : 1;
     const fmt = document.getElementById('mon_format').value;
@@ -193,7 +225,7 @@ const DeviceMonitor = {
     tbody.innerHTML = filtered.map(d =>
       `<tr>
         <td>${d.device}</td>
-        <td>${d.address}</td>
+        <td>${this.formatAddress(d.device, d.address)}</td>
         <td>
           <select class="row-format" style="width:auto;padding:2px 4px;font-size:0.8rem;" onchange="DeviceMonitor.changeFormat(${d.originalIndex}, this.value)">
             <option value="DEC"${d.format === 'DEC' ? ' selected' : ''}>DEC</option>
