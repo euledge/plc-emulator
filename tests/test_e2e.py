@@ -274,6 +274,54 @@ def test_device_monitor_format_switching(page, server_url, api):
     page.wait_for_function("document.getElementById('val_0').textContent === '0xFFFF'", timeout=5000)
     assert page.locator("#val_0").text_content() == "0xFFFF"
 
+    # Pre-populate D300=0x86A0 (34464), D301=0x0001 (1) -> 100000
+    api.put("/api/devices/D/300", json={"value": 0x86A0})
+    api.put("/api/devices/D/301", json={"value": 0x0001})
+
+    # Switch row format to DWORD -> 100000
+    page.locator(".row-format").first.select_option("DWORD")
+    page.wait_for_function("document.getElementById('val_0').textContent === '100000'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "100000"
+
+    # Pre-populate D300=0x7960 (31072), D301=0xFFFE (65534) -> -100000
+    api.put("/api/devices/D/300", json={"value": 0x7960})
+    api.put("/api/devices/D/301", json={"value": 0xFFFE})
+
+    # Switch row format to LONG -> -100000
+    page.locator(".row-format").first.select_option("LONG")
+    page.wait_for_function("document.getElementById('val_0').textContent === '-100000'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "-100000"
+
+    # Edit cell as LONG: enter -200000
+    page.locator("#val_0").dblclick()
+    input_el = page.locator("#edit_input_0")
+    input_el.fill("-200000")
+    input_el.press("Enter")
+    page.wait_for_function("document.getElementById('val_0').textContent === '-200000'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "-200000"
+
+    # Check device memory via REST: -200000 -> 0xFFFCF2C0: low=0xF2C0 (62144), high=0xFFFC (65532)
+    mem_resp = api.get("/api/devices/D?start=300&count=2")
+    assert mem_resp.json()["values"] == [0xF2C0, 0xFFFC]
+
+    # Switch row format to DWORD -> 4294767296 - 200000 = 4294767296 - 200000 = 4294767296
+    # 0xFFFCF2C0 as uint32 = 4294767296 (0x100000000) - 200000 = 4294767296
+    page.locator(".row-format").first.select_option("DWORD")
+    page.wait_for_function("document.getElementById('val_0').textContent === '4294767296'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "4294767296"
+
+    # Edit cell as DWORD: enter 12345678
+    page.locator("#val_0").dblclick()
+    input_el = page.locator("#edit_input_0")
+    input_el.fill("12345678")
+    input_el.press("Enter")
+    page.wait_for_function("document.getElementById('val_0').textContent === '12345678'", timeout=5000)
+    assert page.locator("#val_0").text_content() == "12345678"
+
+    # 12345678 = 0x00BC614E -> low=0x614E (24910), high=0x00BC (188)
+    mem_resp2 = api.get("/api/devices/D?start=300&count=2")
+    assert mem_resp2.json()["values"] == [0x614E, 0x00BC]
+
 def test_language_switch_to_en(page, server_url):
     page.goto(server_url)
     page.locator("button[data-lang='en']").click()

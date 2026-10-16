@@ -40,6 +40,8 @@ const DeviceMonitor = {
               <option value="DEC_SIGNED">DEC (Signed)</option>
               <option value="HEX">HEX</option>
               <option value="BIN">BIN</option>
+              <option value="DWORD">DWORD</option>
+              <option value="LONG">LONG</option>
               <option value="FLOAT">FLOAT</option>
               <option value="ASCII">ASCII</option>
             </select>
@@ -100,6 +102,10 @@ const DeviceMonitor = {
   isHexDevice(dev) {
     return ['X', 'Y', 'B', 'W', 'SB', 'SW'].includes((dev || '').toUpperCase());
   },
+  is32BitFormat(fmt) {
+    return ['DWORD', 'LONG', 'FLOAT'].includes(fmt);
+  },
+
 
   updateAddressPlaceholder(dev) {
     const addrInput = document.getElementById('mon_address');
@@ -159,7 +165,7 @@ const DeviceMonitor = {
       const c1 = (b1 >= 32 && b1 <= 126) ? String.fromCharCode(b1) : '.';
       return `'${c0}${c1}'`;
     }
-    if (fmt === 'FLOAT') {
+    if (this.is32BitFormat(fmt)) {
       let highWord = 0;
       if (d) {
         const next = this.devices.find(x => x.device === d.device && x.address === d.address + 1);
@@ -173,9 +179,17 @@ const DeviceMonitor = {
       const view = new DataView(buf);
       view.setUint16(0, num & 0xFFFF, true);
       view.setUint16(2, highWord & 0xFFFF, true);
-      const f = view.getFloat32(0, true);
-      if (!Number.isFinite(f)) return String(f);
-      return Number.isInteger(f) ? f.toFixed(1) : parseFloat(f.toPrecision(7)).toString();
+      if (fmt === 'DWORD') {
+        return String(view.getUint32(0, true));
+      }
+      if (fmt === 'LONG') {
+        return String(view.getInt32(0, true));
+      }
+      if (fmt === 'FLOAT') {
+        const f = view.getFloat32(0, true);
+        if (!Number.isFinite(f)) return String(f);
+        return Number.isInteger(f) ? f.toFixed(1) : parseFloat(f.toPrecision(7)).toString();
+      }
     }
     return String(val);
   },
@@ -195,7 +209,7 @@ const DeviceMonitor = {
       } else {
         this.devices.push({ device: dev, address: addr, format: fmt, value: null });
       }
-      if (fmt === 'FLOAT' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (this.is32BitFormat(fmt) && this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'monitor_add', device: dev, address: addr + 1 }));
       }
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -232,6 +246,8 @@ const DeviceMonitor = {
             <option value="DEC_SIGNED"${d.format === 'DEC_SIGNED' ? ' selected' : ''}>DEC (Signed)</option>
             <option value="HEX"${d.format === 'HEX' ? ' selected' : ''}>HEX</option>
             <option value="BIN"${d.format === 'BIN' ? ' selected' : ''}>BIN</option>
+            <option value="DWORD"${d.format === 'DWORD' ? ' selected' : ''}>DWORD</option>
+            <option value="LONG"${d.format === 'LONG' ? ' selected' : ''}>LONG</option>
             <option value="FLOAT"${d.format === 'FLOAT' ? ' selected' : ''}>FLOAT</option>
             <option value="ASCII"${d.format === 'ASCII' ? ' selected' : ''}>ASCII</option>
           </select>
@@ -245,7 +261,7 @@ const DeviceMonitor = {
   changeFormat(i, fmt) {
     if (this.devices[i]) {
       this.devices[i].format = fmt;
-      if (fmt === 'FLOAT' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (this.is32BitFormat(fmt) && this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'monitor_add', device: this.devices[i].device, address: this.devices[i].address + 1 }));
       }
       this.renderTable();
@@ -280,7 +296,7 @@ const DeviceMonitor = {
         if (d.address === msg.address) {
           d.value = msg.value;
           touched = true;
-        } else if (d.format === 'FLOAT' && d.address + 1 === msg.address) {
+        } else if (this.is32BitFormat(d.format) && d.address + 1 === msg.address) {
           d.highWord = msg.value;
           touched = true;
         }
@@ -294,7 +310,9 @@ const DeviceMonitor = {
   editCell(i) {
     const el = document.getElementById(`val_${i}`);
     if (!el || el.querySelector('input')) return;
-    const currentVal = this.devices[i].value ?? 0;
+    const currentVal = this.is32BitFormat(this.devices[i].format)
+      ? this.formatValue(this.devices[i].value, this.devices[i].format, this.devices[i])
+      : (this.devices[i].value ?? 0);
     el.innerHTML = `<input type="text" id="edit_input_${i}" value="${currentVal}" style="width:100%;max-width:120px;padding:2px 4px;background:#1a1a2e;color:#fff;border:1px solid #4ecca3;border-radius:3px;">`;
     const input = document.getElementById(`edit_input_${i}`);
     input.focus();
@@ -316,15 +334,47 @@ const DeviceMonitor = {
     const d = this.devices[i];
     if (!d) return;
 
-    if (d.format === 'FLOAT') {
-      const f = parseFloat(str);
-      if (isNaN(f) || !isFinite(f)) {
-        this.renderTable();
-        return;
+    if (this.is32BitFormat(d.format)) {
+      let val;
+      if (d.format === 'DWORD') {
+        if (str.startsWith('0x') || str.startsWith('0X')) {
+          val = parseInt(str, 16);
+        } else {
+          val = parseInt(str, 10);
+        }
+        if (isNaN(val) || val < 0 || val > 0xFFFFFFFF) {
+          this.renderTable();
+          return;
+        }
+      } else if (d.format === 'LONG') {
+        if (str.startsWith('0x') || str.startsWith('0X')) {
+          val = parseInt(str, 16);
+          if (!isNaN(val) && val > 0x7FFFFFFF) {
+            val = (val | 0);
+          }
+        } else {
+          val = parseInt(str, 10);
+        }
+        if (isNaN(val) || val < -0x80000000 || val > 0x7FFFFFFF) {
+          this.renderTable();
+          return;
+        }
+      } else if (d.format === 'FLOAT') {
+        val = parseFloat(str);
+        if (isNaN(val) || !isFinite(val)) {
+          this.renderTable();
+          return;
+        }
       }
       const buf = new ArrayBuffer(4);
       const view = new DataView(buf);
-      view.setFloat32(0, f, true);
+      if (d.format === 'DWORD') {
+        view.setUint32(0, val, true);
+      } else if (d.format === 'LONG') {
+        view.setInt32(0, val, true);
+      } else if (d.format === 'FLOAT') {
+        view.setFloat32(0, val, true);
+      }
       const low = view.getUint16(0, true);
       const high = view.getUint16(2, true);
       try {

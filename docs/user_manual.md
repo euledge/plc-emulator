@@ -6,7 +6,7 @@ This manual explains how to use **PLCEmulator**, an open-source PLC communicatio
 
 ## Table of Contents
 
-1. [Overview & Features](#1-overview--features)
+1. [Overview &amp; Features](#1-overview--features)
 2. [Quick Start](#2-quick-start)
 3. [UI Guide with Screenshots](#3-ui-guide-with-screenshots)
    - [3.1 Settings Panel](#31-settings-panel)
@@ -15,20 +15,21 @@ This manual explains how to use **PLCEmulator**, an open-source PLC communicatio
    - [3.4 Script Editor](#34-script-editor)
 4. [Practical Testing Scenarios](#4-practical-testing-scenarios)
 5. [REST API Reference](#5-rest-api-reference)
-6. [Troubleshooting & FAQ](#6-troubleshooting--faq)
+6. [Troubleshooting &amp; FAQ](#6-troubleshooting--faq)
 
 ---
 
-## 1. Overview & Features
+## 1. Overview &amp; Features
 
 PLCEmulator allows developers to test SCADA, MES, IoT gateways, and custom communication applications on PC without needing physical PLC hardware.
 
 ### Key Features
+
 - **Multi-Protocol Support**: MC Protocol 3E (Binary/ASCII), 4E, 1E, and SLMP.
 - **Flexible Transports**: Both TCP and UDP supported with dynamic runtime switching.
 - **Essential PLC Commands**: Batch Read/Write (`0401`/`1401`), Random Read/Write (`0403`/`1402`), Monitor Register/Execute (`0801`/`0802`), CPU Model Read (`0101`), Remote RUN/STOP (`1001`/`1002`), Remote Password Lock/Unlock (`1630`/`1631`).
 - **Real-Time Web Dashboard**: Interactive device monitoring, inline editing, parsed packet logging, 6 display formats, and script execution engine.
-- **Latency & Fault Simulation**: Configurable network delays (Fixed, Random, Normal distribution), timeouts, and error response suppression.
+- **Latency &amp; Fault Simulation**: Configurable network delays (Fixed, Random, Normal distribution), timeouts, and error response suppression.
 
 ---
 
@@ -45,6 +46,7 @@ uv run python main.py
 ```
 
 Two services will start simultaneously:
+
 - **PLC Server**: Default `TCP 5000` (listening on 0.0.0.0)
 - **Web UI Dashboard**: `http://127.0.0.1:8000`
 
@@ -61,6 +63,7 @@ Configure server protocols, networking, PLC model range profiles, latency emulat
 ![Settings Panel](images/manual_settings.png)
 
 #### Features
+
 1. **Server Configuration**:
    - **Protocol**: Choose from `3E`, `1E`, `4E`, `SLMP`. Changes apply dynamically without restarting the app.
    - **Transport**: `TCP` or `UDP`.
@@ -70,14 +73,32 @@ Configure server protocols, networking, PLC model range profiles, latency emulat
    - **Error Response**: When disabled, dropped/silent error response behavior is simulated.
    - **Save Button**: Immediately updates the running server.
 
+##### Supported PLC Models and Device Address Ranges (Upper Limits)
+
+The valid address range for each supported PLC model profile is summarized below. For hexadecimal devices (`W`, `B`, `X`, `Y`, `SW`, `SB`), both internal decimal limits and corresponding hexadecimal address notations are provided.
+
+
+| PLC Model  | W / SW (Hex Word)          | B / SB (Hex Bit)           | X / Y (Hex Bit)            | D (Dec Word) | M / L (Dec Bit)                | R / ZR (File Register)          |
+| ---------- | -------------------------- | -------------------------- | -------------------------- | ------------ | ------------------------------ | ------------------------------- |
+| **Q03UDE** | 0 to 2047 (`W0` to `W7FF`) | 0 to 2047 (`B0` to `B7FF`) | 0 to 2047 (`X0` to `X7FF`) | 0 to 12287   | M: 0 to 8191<br>L: 0 to 8191   | R: 0 to 32767<br>ZR: 0 to 65535 |
+| **Q06UDE** | 0 to 2047 (`W0` to `W7FF`) | 0 to 2047 (`B0` to `B7FF`) | 0 to 2047 (`X0` to `X7FF`) | 0 to 12287   | M: 0 to 8191<br>L: 0 to 8191   | R: 0 to 32767<br>ZR: 0 to 65535 |
+| **R04CPU** | 0 to 4095 (`W0` to `WFFF`) | 0 to 4095 (`B0` to `BFFF`) | 0 to 4095 (`X0` to `XFFF`) | 0 to 65535   | M: 0 to 65535<br>L: 0 to 32767 | R: 0 to 65535<br>ZR: 0 to 65535 |
+| **R08CPU** | 0 to 4095 (`W0` to `WFFF`) | 0 to 4095 (`B0` to `BFFF`) | 0 to 4095 (`X0` to `XFFF`) | 0 to 65535   | M: 0 to 65535<br>L: 0 to 32767 | R: 0 to 65535<br>ZR: 0 to 65535 |
+| **FX5U**   | 0 to 2047 (`W0` to `W7FF`) | 0 to 2047 (`B0` to `B7FF`) | 0 to 2047 (`X0` to `X7FF`) | 0 to 32767   | M: 0 to 32767<br>L: 0 to 32767 | R: 0 to 32767<br>ZR: 0 to 65535 |
+| **L06CPU** | 0 to 2047 (`W0` to `W7FF`) | 0 to 2047 (`B0` to `B7FF`) | 0 to 2047 (`X0` to `X7FF`) | 0 to 12287   | M: 0 to 8191<br>L: 0 to 8191   | R: 0 to 32767<br>ZR: 0 to 65535 |
+
+
+*Note: Timers (`TS`, `TC`, `TN`), counters (`CS`, `CC`, `CN`), and special devices (`SM`, `SD`) allow addresses 0 to 2047 (0 to 4095 for R04/R08).*
+
+
+*Accessing addresses exceeding these boundaries will produce protocol error `0xC051` / `0xC058` or a validation error.*
+
 2. **Latency Emulation**:
    - Modes: `None`, `Fixed`, `Random`, `Normal`, `Timeout`.
    - Set delay in milliseconds or timeout rate to stress-test your client applications under adverse network conditions.
-
 3. **Latency Statistics Panel**:
    - Tracks packet counts, average delay, maximum delay, minimum delay, and simulated timeout counts.
    - "Refresh" updates stats; "Reset" clears counters.
-
 4. **State Persistence**:
    - **Save State**: Saves all current device memory values to a JSON file.
    - **Load State**: Restores saved values.
@@ -91,30 +112,31 @@ Monitor and edit internal PLC device memory (D, W, M, X, Y, L, B, R, ZR, etc.) i
 ![Device Monitor](images/manual_device_monitor.png)
 
 #### Features
+
 1. **Adding Devices**:
    - **Device**: Select device type (D, M, X, Y, etc.).
    - **Address**: Starting address.
+     - **Hexadecimal Devices** (`W`, `X`, `Y`, `B`, `SB`, `SW`): Enter the address in hexadecimal notation (e.g. `100` = 0x100 = decimal 256, `1F`, `A`). Displayed in hexadecimal on the monitor table.
+     - **Decimal Devices** (`D`, `M`, `L`, `R`, `ZR`, etc.): Enter the address in decimal notation (e.g. `100`). Displayed in decimal on the monitor table.
    - **Points**: Number of consecutive addresses to monitor (e.g. `3` adds D100, D101, D102 in one click).
-   - **Format**: Initial display format.
+   - **Format**: Initial display format (DEC, DEC Signed, HEX, BIN, DWORD, LONG, FLOAT, ASCII).
    - **Add Button**: Inserts devices into the monitoring table. Pressing Enter in the input fields also triggers addition.
-
 2. **Device Type Tabs**:
    - **"ALL" Tab**: Shows all monitored devices across all types in a single table (default).
    - **Specific Tabs (D, W, M...)**: Filters the list to display only the selected device type.
-
-3. **6 Display Formats**:
+3. **8 Display Formats**:
    - Switch format per row on the fly:
      - `DEC`: Unsigned 16-bit integer (0 to 65535)
      - `DEC (Signed)`: Signed 16-bit integer (-32768 to 32767)
      - `HEX`: Hexadecimal (`0x1234`)
      - `BIN`: Binary (`0b0001001000110100`)
+     - `DWORD`: Unsigned 32-bit integer (0 to 4294967295, combines two consecutive words)
+     - `LONG`: Signed 32-bit integer (-2147483648 to 2147483647, combines two consecutive words)
      - `FLOAT`: 32-bit IEEE 754 float (combines two consecutive words)
      - `ASCII`: ASCII string (2 characters per word)
-
 4. **Direct Inline Editing**:
    - **Double-click any value cell** to edit it directly from the browser. Changes immediately reflect in memory and over PLC sockets.
-
-5. **Removing & Clearing**:
+5. **Removing &amp; Clearing**:
    - Row **"×" Button**: Removes the device from the monitor.
    - **"Clear All" Button**: Clears the entire monitoring table and resets device memory to 0 after confirmation.
 
@@ -127,13 +149,13 @@ Inspect live binary and ASCII packets exchanged between client software and the 
 ![Communication Log](images/manual_comm_log.png)
 
 #### Features
-1. **Packet Inspection & Command Recognition**:
+
+1. **Packet Inspection &amp; Command Recognition**:
    - **RX (`<-`, Green)**: Incoming request packets from clients.
    - **TX (`->`, Blue)**: Outgoing response packets from the emulator.
    - **Parsed Command Badges**: Automatically detects and displays badges such as `[Batch Read (0401)]` and `[Batch Write (1401)]`.
    - **Hex Dump**: Verbatim payload in hexadecimal format.
    - **Sensitive Data Masking**: Passwords in `1630` packets are automatically masked with `**`.
-
 2. **Controls**:
    - **Auto-scroll Checkbox**: Automatically scrolls to the newest log entries.
    - **Clear Button**: Empties the current display log.
@@ -148,9 +170,9 @@ Run autonomous simulation scenarios written in YAML to mimic automated machinery
 ![Script Editor](images/manual_script_editor.png)
 
 #### Features
-1. **YAML Editor with Syntax Highlighting & Line Numbers**:
-   - Highlights keys, strings, numbers, booleans, and comments (`#`). Synchronized line numbers gutter.
 
+1. **YAML Editor with Syntax Highlighting &amp; Line Numbers**:
+   - Highlights keys, strings, numbers, booleans, and comments (`#`). Synchronized line numbers gutter.
 2. **Preset Scenario Templates**:
    - Select and load pre-configured industrial scenarios:
      - `traffic_light.yaml`: Traffic light sequencing
@@ -159,10 +181,8 @@ Run autonomous simulation scenarios written in YAML to mimic automated machinery
      - `cylinder_sequence.yaml`: Pneumatic cylinder stroke sequence
      - `sensor_simulation.yaml`: Sine wave and random noise sensor simulation
      - `ramp_loop.yaml`: Triangular ramp loop generator
-
 3. **Safe Validation (Validate Button)**:
    - Evaluates YAML syntax and verifies that expressions strictly conform to sandbox safety rules (blocks `eval`, `import`, system calls).
-
 4. **Execution Controls**:
    - **Start**: Begins running the script in the background.
    - **Pause**: Suspends updates without resetting internal script state.
@@ -173,17 +193,20 @@ Run autonomous simulation scenarios written in YAML to mimic automated machinery
 ## 4. Practical Testing Scenarios
 
 ### Scenario A: Testing SCADA / Driver Connection
+
 1. Set protocol to `3E (Binary)` and port `5000` in **Settings**.
 2. Connect your SCADA software to `127.0.0.1:5000`.
 3. Check the **Comm Log** panel to verify request and response packets.
 4. Modify `D100` in **Device Monitor** and verify the SCADA screen updates immediately.
 
-### Scenario B: Testing Resilience against Timeouts & Latency
+### Scenario B: Testing Resilience against Timeouts &amp; Latency
+
 1. Under **Settings**, select `Timeout` latency mode with `timeout rate: 0.3` (30% drop rate).
 2. Verify that your client application properly logs timeout exceptions and executes retry logic.
 3. Check the **Latency Statistics** panel for exact timeout counts.
 
 ### Scenario C: Long-running Unattended Polling Tests
+
 1. Load `sensor_simulation.yaml` or `sawtooth.yaml` in **Script Editor**.
 2. Click **Start** to run autonomous data generation.
 3. Open **Device Monitor** to watch device values cycle automatically.
@@ -194,29 +217,43 @@ Run autonomous simulation scenarios written in YAML to mimic automated machinery
 
 All features can be automated via REST API:
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/config` | Get current server configuration |
-| `POST` | `/api/config` | Dynamically update configuration |
-| `GET` | `/api/devices/{type}?start={s}&count={n}` | Read device memory batch |
-| `PUT` | `/api/devices/{type}/{address}` | Write device value |
-| `POST` | `/api/devices/clear` | Clear device memory to 0 |
-| `GET` | `/api/comm_log/export` | Download communication log as text file |
-| `GET` | `/api/latency/stats` | Retrieve latency statistics |
-| `POST` | `/api/latency/stats/reset` | Reset latency statistics |
-| `GET` | `/api/scripts/templates` | List pre-packaged templates |
-| `POST` | `/api/scripts/{name}/start` | Start script execution |
+
+| Method | Endpoint                                  | Description                                                        |
+| ------ | ----------------------------------------- | ------------------------------------------------------------------ |
+| `GET`  | `/api/config`                             | Get current server configuration                                   |
+| `POST` | `/api/config`                             | Dynamically update configuration                                   |
+| `GET`  | `/api/devices/{type}?start={s}&count={n}` | Read device memory batch (`start` is **always a decimal integer**) |
+| `PUT`  | `/api/devices/{type}/{address}`           | Write device value (`{address}` is **always a decimal integer**)   |
+| `POST` | `/api/devices/clear`                      | Clear device memory to 0                                           |
+| `GET`  | `/api/comm_log/export`                    | Download communication log as text file                            |
+| `GET`  | `/api/latency/stats`                      | Retrieve latency statistics                                        |
+| `POST` | `/api/latency/stats/reset`                | Reset latency statistics                                           |
+| `GET`  | `/api/scripts/templates`                  | List pre-packaged templates                                        |
+| `POST` | `/api/scripts/{name}/start`               | Start script execution                                             |
+
+
+> **Important: Addressing for Hexadecimal Devices (W, X, Y, B, SB, SW) in REST API**
+> The path parameter `{address}` and query parameter `start` must **always be specified as decimal integers** (internal addresses), even for hexadecimal devices.
+>
+> - Example for `W100` (hex `100` = decimal `256`):
+>   - Write: `PUT /api/devices/W/256` (`{"value": 100}`)
+>   - Read: `GET /api/devices/W?start=256&count=1`
+> - Example for `X1F` (hex `1F` = decimal `31`): `PUT /api/devices/X/31` (`{"value": 1}`)
+> *Note: Passing hex strings such as `1F` in the URL path will result in a 422 Validation Error.*
 
 ---
 
-## 6. Troubleshooting & FAQ
+## 6. Troubleshooting &amp; FAQ
 
 #### Q1: Client cannot connect (Connection Refused)
+
 - Verify the port configured in Settings (default: `5000`).
 - Ensure no firewall rule is blocking incoming connections.
 
 #### Q2: Added devices are not visible in Device Monitor
+
 - Make sure the device type tab is set to **"ALL"** or matches the added device type.
 
 #### Q3: Server responds with error code `0xC051` or `0xC058`
+
 - The requested address exceeds the valid memory boundary for the chosen PLC model (e.g. FX5U D limit is 32767). Switch to a larger PLC model such as `R08CPU` if needed.
