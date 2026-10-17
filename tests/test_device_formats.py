@@ -25,6 +25,12 @@ def format_val_python(val, fmt, high_word=0):
         buf = struct.pack("<HH", num, high_word & 0xFFFF)
         f = struct.unpack("<f", buf)[0]
         return f"{f:.1f}" if f.is_integer() else f"{f:.7g}"
+    if fmt == "DWORD":
+        buf = struct.pack("<HH", num, high_word & 0xFFFF)
+        return str(struct.unpack("<I", buf)[0])
+    if fmt == "LONG":
+        buf = struct.pack("<HH", num, high_word & 0xFFFF)
+        return str(struct.unpack("<i", buf)[0])
     return str(val)
 
 
@@ -57,6 +63,21 @@ def test_float_32bit_two_consecutive_words():
     formatted_neg = format_val_python(0x0000, "FLOAT", high_word=0xBF80)
     assert formatted_neg == "-1.0"
 
+
+def test_dword_and_long_32bit_two_consecutive_words():
+    # DWORD: 100000 -> 0x000186A0
+    # Little-endian: low = 0x86A0 (34464), high = 0x0001 (1)
+    low = 0x86A0
+    high = 0x0001
+    assert format_val_python(low, "DWORD", high_word=high) == "100000"
+    assert format_val_python(low, "LONG", high_word=high) == "100000"
+
+    # LONG: -100000 -> 0xFFFE7960
+    # Little-endian: low = 0x7960 (31072), high = 0xFFFE (65534)
+    low_neg = 0x7960
+    high_neg = 0xFFFE
+    assert format_val_python(low_neg, "LONG", high_word=high_neg) == "-100000"
+    assert format_val_python(low_neg, "DWORD", high_word=high_neg) == str(0xFFFE7960)
 
 def test_ascii_characters_two_bytes_per_word():
     # Low byte 'A' (0x41), High byte 'B' (0x42) -> 0x4241

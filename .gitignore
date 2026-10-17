@@ -25,6 +25,7 @@ saves/
 !docs/*.json
 !src/i18n/*.json
 
+scripts/*.yaml
 # Test artifacts
 .pytest_cache/
 tests/__pycache__/
