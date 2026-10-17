@@ -28,9 +28,10 @@ PLC communication emulator supporting MC protocol / SLMP
 
 ## Web UI Dashboard
 
-![Device Monitor](docs/images/manual_device_monitor.png)
+![PLCEmulator Demo](docs/images/demo_en.gif)
 
 The built-in web dashboard provides real-time device monitoring, inline memory editing, communication logging, and autonomous script execution:
+
 - **Device Monitor**: Real-time table viewing across all device types (`ALL` tab) or filtered by type (D, W, M, X, Y, etc.). Supports batch additions via points, 6 display formats (DEC, DEC Signed, HEX, BIN, FLOAT, ASCII), and direct double-click inline editing.
 - **Settings Panel**: Dynamic runtime switching of protocols (3E, 1E, 4E, SLMP), transports (TCP/UDP), PLC models, and latency simulation.
 - **Communication Log**: Live packet inspector with command badges, hex dump, and text log export.
