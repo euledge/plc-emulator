@@ -7,7 +7,7 @@
 
 PLC communication emulator supporting MC protocol / SLMP
 
-[**日本語版はこちら**](README.ja.md) | [**Release Notes (v1.0.0)**](RELEASE_NOTES_v1.0.0.md) | [**User Manual**](docs/user_manual.md) | [**Script DSL Reference**](docs/script_dsl_reference.md)
+[**日本語版はこちら**](README.ja.md) | [**Release Notes (v1.1.0)**](RELEASE_NOTES_v1.1.0.md) | [**User Manual**](docs/user_manual.md) | [**Script DSL Reference**](docs/script_dsl_reference.md)
 
 > **GitHub topics 候補**: `plc`, `mc-protocol`, `slmp`, `mitsubishi`, `emulator`, `fastapi`, `plc-simulator`, `python`, `scada`, `industrial-automation`
 
