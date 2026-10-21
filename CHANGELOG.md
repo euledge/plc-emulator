@@ -4,11 +4,19 @@ All notable changes to PLCEmulator, tracked by release date.
 
 ## Unreleased
 
+## October 21, 2026 — v1.1.0
+
+### ✨ New
+
+- **DWORD & LONG Formats in Device Monitor** — Added support for 32-bit integer display (`DWORD` unsigned 32-bit and `LONG` signed 32-bit) in Device Monitor. Automatically combines 2 consecutive words (little-endian), updates via WebSocket subscriptions, and supports inline double-click editing with low/high word decomposition (#74).
+- **Animated Demos & Promo Walkthroughs** — Added demo GIF animations and high-resolution promo walkthrough videos in both Japanese and English to the repository README (#76).
+
 ### ⚡ Improved
 
 - **Hexadecimal Device Addressing** — Added full support for hexadecimal address representation across HEX devices (`W`, `X`, `Y`, `B`, `SW`, `SB`) in Script YAML DSL, SafeEvaluator expressions, and Web UI Device Monitor in conformance with MELSEC standard specifications (#72).
 - **Config Persistence & Active Port Indicator** — Web settings changes (including PLC port) are now automatically saved to `saves/config.json` and reloaded upon app startup. Added real-time active PLC port indicator in the Web Settings UI and `/api/config` (#70).
 - **Dynamic Port Switching Coverage** — Added integration and E2E tests validating runtime TCP port changes and communication (#70).
+- **Manual & DSL Documentation** — Updated Japanese and English user manuals and Script DSL reference to document 32-bit data types, hexadecimal device rules, and PLC model capacity limits (#74).
 
 ### 🐛 Fixed
 
@@ -87,4 +95,4 @@ All notable changes to PLCEmulator, tracked by release date.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
-[Compare v0.1.0 → v1.0.0](https://github.com/euledge/plc-emulator/compare/v0.1.0...v1.0.0) | [Compare v1.0.0 → HEAD](https://github.com/euledge/plc-emulator/compare/v1.0.0...HEAD)
+[Compare v0.1.0 → v1.0.0](https://github.com/euledge/plc-emulator/compare/v0.1.0...v1.0.0) | [Compare v1.0.0 → v1.1.0](https://github.com/euledge/plc-emulator/compare/v1.0.0...v1.1.0) | [Compare v1.1.0 → HEAD](https://github.com/euledge/plc-emulator/compare/v1.1.0...HEAD)
