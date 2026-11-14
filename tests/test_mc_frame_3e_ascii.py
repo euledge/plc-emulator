@@ -36,6 +36,54 @@ def make_ascii_write_req(dev: str = "D*", addr: int = 100, values: list[int] = [
     return frame.encode("ascii")
 
 
+def make_standard_ascii_read_req(
+    network: str = "00",
+    pc: str = "FF",
+    unit_io: str = "03FF",
+    station: str = "00",
+    dev: str = "D*",
+    addr: int = 100,
+    count: int = 1,
+    is_bit: bool = False,
+) -> bytes:
+    """Official MELSEC 3E ASCII format with 10-char routing header including Station No (SH-080008)."""
+    subcmd = "0001" if is_bit else "0000"
+    dev_str = f"{dev:<2}"[:2]
+    addr_str = f"{addr:06d}"
+    count_str = f"{count:04X}"
+    routing = f"{network}{pc}{unit_io}{station}"
+    payload = f"00100401{subcmd}{dev_str}{addr_str}{count_str}"
+    data_len = f"{len(payload):04X}"
+    frame = f"5000{routing}{data_len}{payload}"
+    return frame.encode("ascii")
+
+
+def make_standard_ascii_write_req(
+    network: str = "00",
+    pc: str = "FF",
+    unit_io: str = "03FF",
+    station: str = "00",
+    dev: str = "D*",
+    addr: int = 100,
+    values: list[int] = [0x1234],
+    is_bit: bool = False,
+) -> bytes:
+    """Official MELSEC 3E ASCII format with 10-char routing header including Station No (SH-080008)."""
+    subcmd = "0001" if is_bit else "0000"
+    dev_str = f"{dev:<2}"[:2]
+    addr_str = f"{addr:06d}"
+    count_str = f"{len(values):04X}"
+    if is_bit:
+        val_str = "".join("1" if v else "0" for v in values)
+    else:
+        val_str = "".join(f"{v:04X}" for v in values)
+    routing = f"{network}{pc}{unit_io}{station}"
+    payload = f"00101401{subcmd}{dev_str}{addr_str}{count_str}{val_str}"
+    data_len = f"{len(payload):04X}"
+    frame = f"5000{routing}{data_len}{payload}"
+    return frame.encode("ascii")
+
+
 class UdpClientProtocol(asyncio.DatagramProtocol):
     def __init__(self) -> None:
         self.queue: asyncio.Queue[bytes] = asyncio.Queue()
@@ -195,3 +243,108 @@ async def test_dynamic_switching_to_ascii_via_api():
             assert resp.json()["data_format"] == "binary"
     finally:
         await app.stop()
+
+
+@pytest.mark.asyncio
+async def test_standard_ascii_3e_10char_routing_tcp():
+    """Verify standard official MELSEC 3E ASCII with 10-char routing header (SH-080008)."""
+    dm = DeviceManager()
+    server = TcpServer(port=0, device_manager=dm, protocol_handler=McFrame3EAscii())
+    await server.start()
+    try:
+        reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
+        try:
+            # 1. Write words D500=0x1111, D501=0x2222 with routing "00FF03FF00" (Station 00)
+            write_req = make_standard_ascii_write_req(
+                network="00", pc="FF", unit_io="03FF", station="00",
+                dev="D*", addr=500, values=[0x1111, 0x2222]
+            )
+            writer.write(write_req)
+            await writer.drain()
+            resp = await asyncio.wait_for(reader.read(1024), timeout=2.0)
+            assert resp[:4] == b"D000"
+            assert resp[4:14] == b"00FF03FF00"  # 10-char routing echoed exactly including Station No
+            assert resp[14:18] == b"0004"  # data len = 4 (end code 0000)
+            assert resp[18:22] == b"0000"  # end code
+            assert dm.read_word("D", 500) == 0x1111
+            assert dm.read_word("D", 501) == 0x2222
+
+            # 2. Read words back
+            read_req = make_standard_ascii_read_req(
+                network="00", pc="FF", unit_io="03FF", station="00",
+                dev="D*", addr=500, count=2
+            )
+            writer.write(read_req)
+            await writer.drain()
+            resp = await asyncio.wait_for(reader.read(1024), timeout=2.0)
+            assert resp[:4] == b"D000"
+            assert resp[4:14] == b"00FF03FF00"
+            assert resp[18:22] == b"0000"
+            assert resp[22:] == b"11112222"
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_standard_ascii_3e_10char_routing_udp():
+    """Verify standard official MELSEC 3E ASCII with 10-char routing via UDP."""
+    dm = DeviceManager()
+    server = UdpServer(port=0, device_manager=dm, protocol_handler=McFrame3EAscii())
+    await server.start()
+    try:
+        loop = asyncio.get_running_loop()
+        transport, client = await loop.create_datagram_endpoint(
+            UdpClientProtocol,
+            remote_addr=("127.0.0.1", server.port),
+        )
+        try:
+            write_req = make_standard_ascii_write_req(
+                network="01", pc="02", unit_io="03FF", station="05",
+                dev="D*", addr=600, values=[0xCAFE]
+            )
+            transport.sendto(write_req)
+            resp = await asyncio.wait_for(client.queue.get(), timeout=2.0)
+            assert resp[:4] == b"D000"
+            assert resp[4:14] == b"010203FF05"  # Station 05 echoed
+            assert resp[18:22] == b"0000"
+            assert dm.read_word("D", 600) == 0xCAFE
+
+            read_req = make_standard_ascii_read_req(
+                network="01", pc="02", unit_io="03FF", station="05",
+                dev="D*", addr=600, count=1
+            )
+            transport.sendto(read_req)
+            resp = await asyncio.wait_for(client.queue.get(), timeout=2.0)
+            assert resp[:4] == b"D000"
+            assert resp[4:14] == b"010203FF05"
+            assert resp[18:22] == b"0000"
+            assert resp[22:] == b"CAFE"
+        finally:
+            transport.close()
+    finally:
+        await server.stop()
+
+
+def test_ascii_3e_unit_extract_and_parse():
+    handler = McFrame3EAscii()
+    # 10-char routing
+    req_10 = make_standard_ascii_read_req(network="00", pc="FF", unit_io="03FF", station="00", dev="D*", addr=100, count=1)
+    buf = bytearray(b"GARBAGE" + req_10)
+    frame = handler.extract_frame(buf)
+    assert frame == req_10
+    parsed = handler.parse_request(frame)
+    assert parsed.access_path == b"00FF03FF00"
+    assert parsed.command == 0x0401
+    assert parsed.devices[0]["address"] == 100
+
+    # 8-char routing (legacy)
+    req_8 = make_ascii_read_req(dev="D*", addr=100, count=1)
+    buf8 = bytearray(req_8)
+    frame8 = handler.extract_frame(buf8)
+    assert frame8 == req_8
+    parsed8 = handler.parse_request(frame8)
+    assert parsed8.access_path == b"00000000"
+    assert parsed8.command == 0x0401
