@@ -48,7 +48,9 @@ COMMAND_NAMES_3E = {
 }
 
 COMMAND_NAMES_1E = {
+    0x00: "Batch Read Bit (1E)",
     0x01: "Batch Read (1E)",
+    0x02: "Batch Write Bit (1E)",
     0x03: "Batch Write (1E)",
 }
 
