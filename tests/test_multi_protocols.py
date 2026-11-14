@@ -26,6 +26,17 @@ def make_1e_write_req(dev_code: int = 0x44, addr: int = 100, values: list[int] =
     return struct.pack("<BBHH", 0x03, dev_code, addr, len(values)) + val_bytes
 
 
+def make_1e_std_read_req(dev_code: bytes = b"D ", addr: int = 100, count: int = 1) -> bytes:
+    # Official standard 1E: subheader(1), pc_no(1), timer(2 LE), addr(4 LE), dev_code(2), count(2 LE)
+    return struct.pack("<BBHI", 0x01, 0xFF, 0x000A, addr) + dev_code + struct.pack("<H", count)
+
+
+def make_1e_std_write_req(dev_code: bytes = b"D ", addr: int = 100, values: list[int] = [1234]) -> bytes:
+    val_bytes = b"".join(struct.pack("<H", v) for v in values)
+    header = struct.pack("<BBHI", 0x03, 0xFF, 0x000A, addr) + dev_code + struct.pack("<H", len(values))
+    return header + val_bytes
+
+
 def make_4e_read_req(dev_code: int = 0xA8, addr: int = 100, count: int = 1, serial: int = 1) -> bytes:
     dev_bytes = bytes([dev_code, addr & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF])
     serial_bytes = struct.pack("<H", serial)
@@ -88,6 +99,7 @@ async def test_1e_tcp_read_write():
             await writer.drain()
             resp = await asyncio.wait_for(reader.read(1024), timeout=2)
             assert resp[0] == 0x83  # 1E write success subheader
+            assert resp[1] == 0x00  # 1E end code (success)
             assert dm.read_word("D", 100) == 1234
             assert dm.read_word("D", 101) == 5678
 
@@ -96,8 +108,23 @@ async def test_1e_tcp_read_write():
             await writer.drain()
             resp = await asyncio.wait_for(reader.read(1024), timeout=2)
             assert resp[0] == 0x81  # 1E read success subheader
-            v0, v1 = struct.unpack_from("<HH", resp, 1)
+            assert resp[1] == 0x00  # 1E end code (success)
+            v0, v1 = struct.unpack_from("<HH", resp, 2)
             assert (v0, v1) == (1234, 5678)
+
+            # Test official standard 12-byte 1E frame
+            writer.write(make_1e_std_write_req(b"D ", 150, [9999]))
+            await writer.drain()
+            resp = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert resp == b"\x83\x00"
+            assert dm.read_word("D", 150) == 9999
+
+            writer.write(make_1e_std_read_req(b"D ", 150, 1))
+            await writer.drain()
+            resp = await asyncio.wait_for(reader.read(1024), timeout=2)
+            assert resp[0] == 0x81
+            assert resp[1] == 0x00
+            assert struct.unpack_from("<H", resp, 2)[0] == 9999
         finally:
             writer.close()
             await writer.wait_closed()
@@ -120,13 +147,27 @@ async def test_1e_udp_read_write():
         transport.sendto(make_1e_write_req(0x44, 200, [4321]))
         resp = await asyncio.wait_for(client.queue.get(), timeout=2.0)
         assert resp[0] == 0x83
+        assert resp[1] == 0x00
         assert dm.read_word("D", 200) == 4321
 
         # Read D200
         transport.sendto(make_1e_read_req(0x44, 200, 1))
         resp = await asyncio.wait_for(client.queue.get(), timeout=2.0)
         assert resp[0] == 0x81
-        assert struct.unpack_from("<H", resp, 1)[0] == 4321
+        assert resp[1] == 0x00
+        assert struct.unpack_from("<H", resp, 2)[0] == 4321
+
+        # Official standard 12-byte 1E frame via UDP
+        transport.sendto(make_1e_std_write_req(b"D ", 250, [8888]))
+        resp = await asyncio.wait_for(client.queue.get(), timeout=2.0)
+        assert resp == b"\x83\x00"
+        assert dm.read_word("D", 250) == 8888
+
+        transport.sendto(make_1e_std_read_req(b"D ", 250, 1))
+        resp = await asyncio.wait_for(client.queue.get(), timeout=2.0)
+        assert resp[0] == 0x81
+        assert resp[1] == 0x00
+        assert struct.unpack_from("<H", resp, 2)[0] == 8888
     finally:
         transport.close()
         await server.stop()
@@ -145,8 +186,7 @@ async def test_1e_malformed_and_unknown_device_returns_error():
             await writer.drain()
             resp = await asyncio.wait_for(reader.read(1024), timeout=2)
             assert resp[0] == 0x81
-            err_code = struct.unpack_from("<H", resp, 1)[0]
-            assert err_code != 0x0000  # Error response, not success
+            assert resp[1] != 0x00  # Error code (1 byte non-zero)
         finally:
             writer.close()
             await writer.wait_closed()
@@ -342,6 +382,7 @@ async def test_dynamic_protocol_switching_via_web_api():
                 await writer.drain()
                 resp_bytes = await asyncio.wait_for(reader.read(1024), timeout=2)
                 assert resp_bytes[0] == 0x83
+                assert resp_bytes[1] == 0x00
                 assert app.device_manager.read_word("D", 50) == 1111
             finally:
                 writer.close()
