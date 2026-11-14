@@ -4,7 +4,8 @@ import struct
 from typing import Callable
 from src.device.device_manager import DeviceManager, DeviceSpecificationError
 from src.protocol.base import ProtocolHandler, CommandResult, ParsedRequest
-from src.protocol.mc_frame_3e import McFrame3E
+from src.protocol.mc_frame_3e import McFrame3E, KNOWN_3E_COMMANDS
+from src.protocol.mc_frame_3e_ascii import KNOWN_3E_COMMANDS_ASCII
 from src.protocol.command_processor import CommandProcessor
 from src.protocol.constants import ErrorCode
 from src.server.latency import LatencyEmulator
@@ -95,31 +96,71 @@ class UdpServer:
         # Length validation for datagrams with length header
         if hasattr(self.protocol_handler, "SUBHEADER_REQUEST"):
             if getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000":
-                if len(data) >= 16:
+                valid = False
+                if len(data) >= 18:
                     try:
-                        data_len = int(data[12:16].decode("ascii"), 16)
+                        dlen_10 = int(data[14:18].decode("ascii"), 16)
+                        if len(data) == 18 + dlen_10:
+                            valid = True
                     except (ValueError, UnicodeDecodeError):
-                        data_len = -1
-                    if len(data) != 16 + data_len:
-                        if not self.error_response_enabled:
-                            return
-                        req = ParsedRequest(access_path=data[4:12] if len(data) >= 12 else b"00000000")
-                        result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
-                        resp = self.protocol_handler.build_response(req, result)
-                        if self.on_comm_log:
-                            try:
-                                self.on_comm_log("tx", resp)
-                            except Exception:
-                                pass
-                        if transport and not transport.is_closing():
-                            transport.sendto(resp, addr)
-                        return
-            elif len(data) >= 8:
-                data_len = struct.unpack_from("<H", data, 6)[0]
-                if len(data) != 8 + data_len:
+                        pass
+                if not valid and len(data) >= 16:
+                    try:
+                        dlen_8 = int(data[12:16].decode("ascii"), 16)
+                        if len(data) == 16 + dlen_8:
+                            valid = True
+                    except (ValueError, UnicodeDecodeError):
+                        pass
+
+                if not valid and len(data) >= 16:
                     if not self.error_response_enabled:
                         return
-                    req = ParsedRequest(access_path=data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+                    cmd_10 = data[22:26].decode("ascii", errors="ignore").upper() if len(data) >= 26 else ""
+                    cmd_8 = data[20:24].decode("ascii", errors="ignore").upper() if len(data) >= 24 else ""
+                    if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+                        acc = data[4:14]
+                    elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+                        acc = data[4:12]
+                    elif len(data) >= 14:
+                        acc = data[4:14]
+                    else:
+                        acc = b"00FF03FF00"
+                    req = ParsedRequest(access_path=acc)
+                    result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
+                    resp = self.protocol_handler.build_response(req, result)
+                    if self.on_comm_log:
+                        try:
+                            self.on_comm_log("tx", resp)
+                        except Exception:
+                            pass
+                    if transport and not transport.is_closing():
+                        transport.sendto(resp, addr)
+                    return
+            elif len(data) >= 8:
+                valid = False
+                if len(data) >= 9:
+                    dlen_5 = struct.unpack_from("<H", data, 7)[0]
+                    if len(data) == 9 + dlen_5:
+                        valid = True
+                if not valid:
+                    dlen_4 = struct.unpack_from("<H", data, 6)[0]
+                    if len(data) == 8 + dlen_4:
+                        valid = True
+
+                if not valid:
+                    if not self.error_response_enabled:
+                        return
+                    cmd_5 = struct.unpack_from("<H", data, 11)[0] if len(data) >= 13 else 0
+                    cmd_4 = struct.unpack_from("<H", data, 10)[0] if len(data) >= 12 else 0
+                    if cmd_5 in KNOWN_3E_COMMANDS:
+                        acc = data[2:7]
+                    elif cmd_4 in KNOWN_3E_COMMANDS:
+                        acc = data[2:6]
+                    elif len(data) >= 7:
+                        acc = data[2:7]
+                    else:
+                        acc = b"\x00\xFF\xFF\x03\x00"
+                    req = ParsedRequest(access_path=acc)
                     result = CommandResult(success=False, error_code=ErrorCode.DATA_LENGTH_MISMATCH)
                     resp = self.protocol_handler.build_response(req, result)
                     if self.on_comm_log:
@@ -147,13 +188,63 @@ class UdpServer:
             logger.warning("Device specification error from %s: %s", addr, e)
             result = CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
             is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
-            acc = (data[4:12] if len(data) >= 12 else b"00000000") if is_ascii else (data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+            if is_ascii:
+                cmd_10 = data[22:26].decode("ascii", errors="ignore").upper() if len(data) >= 26 else ""
+                cmd_8 = data[20:24].decode("ascii", errors="ignore").upper() if len(data) >= 24 else ""
+                if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = data[4:14]
+                elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = data[4:12]
+                elif len(data) >= 14:
+                    acc = data[4:14]
+                elif len(data) >= 12:
+                    acc = data[4:12]
+                else:
+                    acc = b"00FF03FF00"
+            else:
+                cmd_5 = struct.unpack_from("<H", data, 11)[0] if len(data) >= 13 else 0
+                cmd_4 = struct.unpack_from("<H", data, 10)[0] if len(data) >= 12 else 0
+                if cmd_5 in KNOWN_3E_COMMANDS:
+                    acc = data[2:7]
+                elif cmd_4 in KNOWN_3E_COMMANDS:
+                    acc = data[2:6]
+                elif len(data) >= 7:
+                    acc = data[2:7]
+                elif len(data) >= 6:
+                    acc = data[2:6]
+                else:
+                    acc = b"\x00\xFF\xFF\x03\x00"
             req = ParsedRequest(access_path=acc)
         except Exception as e:
             logger.warning("Error parsing/processing datagram from %s: %s", addr, e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)
             is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
-            acc = (data[4:12] if len(data) >= 12 else b"00000000") if is_ascii else (data[2:6] if len(data) >= 6 else b"\x00\x00\x00\x00")
+            if is_ascii:
+                cmd_10 = data[22:26].decode("ascii", errors="ignore").upper() if len(data) >= 26 else ""
+                cmd_8 = data[20:24].decode("ascii", errors="ignore").upper() if len(data) >= 24 else ""
+                if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = data[4:14]
+                elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = data[4:12]
+                elif len(data) >= 14:
+                    acc = data[4:14]
+                elif len(data) >= 12:
+                    acc = data[4:12]
+                else:
+                    acc = b"00FF03FF00"
+            else:
+                cmd_5 = struct.unpack_from("<H", data, 11)[0] if len(data) >= 13 else 0
+                cmd_4 = struct.unpack_from("<H", data, 10)[0] if len(data) >= 12 else 0
+                if cmd_5 in KNOWN_3E_COMMANDS:
+                    acc = data[2:7]
+                elif cmd_4 in KNOWN_3E_COMMANDS:
+                    acc = data[2:6]
+                elif len(data) >= 7:
+                    acc = data[2:7]
+                elif len(data) >= 6:
+                    acc = data[2:6]
+                else:
+                    acc = b"\x00\xFF\xFF\x03\x00"
             req = ParsedRequest(access_path=acc)
 
         if not result.success and not self.error_response_enabled:

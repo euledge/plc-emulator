@@ -5,6 +5,11 @@ from src.device.device_manager import DeviceSpecificationError
 
 DECIMAL_DEVICES = {"D", "M", "L", "F", "V", "S", "SM", "SD", "TN", "CN", "TS", "TC", "CS", "CC"}
 
+KNOWN_3E_COMMANDS_ASCII = {
+    "0401", "1401", "0403", "1402", "0101", "0619",
+    "1001", "1002", "0801", "0802", "1630", "1631",
+}
+
 
 def parse_device_ascii(dev_str: str, addr_str: str) -> tuple[str, int]:
     clean_name = dev_str.strip("* ").upper()
@@ -39,12 +44,48 @@ class McFrame3EAscii(ProtocolHandler):
             if buf[:4].upper() == self.SUBHEADER_REQUEST:
                 if len(buf) < 16:
                     return None
-                try:
-                    data_len = int(buf[12:16].decode("ascii"), 16)
-                except (ValueError, UnicodeDecodeError):
+
+                total_len = None
+                # Check for standard 10-char routing vs legacy 8-char routing
+                if len(buf) >= 26:
+                    cmd_10 = buf[22:26].decode("ascii", errors="ignore").upper()
+                    cmd_8 = buf[20:24].decode("ascii", errors="ignore").upper()
+                    if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+                        try:
+                            dlen = int(buf[14:18].decode("ascii"), 16)
+                            total_len = 18 + dlen
+                        except (ValueError, UnicodeDecodeError):
+                            pass
+                    elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+                        try:
+                            dlen = int(buf[12:16].decode("ascii"), 16)
+                            total_len = 16 + dlen
+                        except (ValueError, UnicodeDecodeError):
+                            pass
+
+                if total_len is None:
+                    # Fallback check based on length parsing
+                    if len(buf) >= 18:
+                        try:
+                            dlen_10 = int(buf[14:18].decode("ascii"), 16)
+                            if 4 <= dlen_10 <= len(buf) - 18:
+                                total_len = 18 + dlen_10
+                        except (ValueError, UnicodeDecodeError):
+                            pass
+                    if total_len is None and len(buf) >= 16:
+                        try:
+                            dlen_8 = int(buf[12:16].decode("ascii"), 16)
+                            if 4 <= dlen_8 <= len(buf) - 16:
+                                total_len = 16 + dlen_8
+                        except (ValueError, UnicodeDecodeError):
+                            pass
+
+                if total_len is None:
+                    if len(buf) < 18:
+                        return None
                     del buf[0:1]
                     continue
-                total_len = 16 + data_len
+
                 if len(buf) < total_len:
                     return None
                 frame = bytes(buf[:total_len])
@@ -55,7 +96,7 @@ class McFrame3EAscii(ProtocolHandler):
         return None
 
     def parse_request(self, data: bytes) -> ParsedRequest:
-        if len(data) < 28:
+        if len(data) < 26:
             raise ValueError("Frame too short for 3E ASCII")
 
         try:
@@ -67,23 +108,55 @@ class McFrame3EAscii(ProtocolHandler):
             raise ValueError("Invalid 3E ASCII subheader")
 
         req = ParsedRequest()
-        req.access_path = data[4:12]
 
-        try:
-            data_len = int(text[12:16], 16)
-        except ValueError as e:
-            raise ValueError("Invalid data length format") from e
+        # Determine whether access path is standard 10-char (with Station No) or legacy 8-char
+        cmd_10 = text[22:26].upper() if len(text) >= 26 else ""
+        cmd_8 = text[20:24].upper() if len(text) >= 24 else ""
 
-        if len(data) != 16 + data_len:
-            raise ValueError("Data length mismatch in 3E ASCII")
+        is_standard_10 = False
+        if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+            is_standard_10 = True
+        elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+            is_standard_10 = False
+        else:
+            try:
+                if len(text) >= 18 and 18 + int(text[14:18], 16) == len(text):
+                    is_standard_10 = True
+            except ValueError:
+                pass
 
-        try:
-            req.command = int(text[20:24], 16)
-            req.subcommand = int(text[24:28], 16)
-        except ValueError as e:
-            raise ValueError("Invalid command or subcommand format") from e
-
-        cmd_payload = text[28:]
+        if is_standard_10:
+            if len(data) < 30:
+                raise ValueError("Frame too short for standard 3E ASCII")
+            req.access_path = data[4:14]
+            try:
+                data_len = int(text[14:18], 16)
+            except ValueError as e:
+                raise ValueError("Invalid data length format") from e
+            if len(data) != 18 + data_len:
+                raise ValueError("Data length mismatch in 3E ASCII")
+            try:
+                req.command = int(text[22:26], 16)
+                req.subcommand = int(text[26:30], 16)
+            except ValueError as e:
+                raise ValueError("Invalid command or subcommand format") from e
+            cmd_payload = text[30:]
+        else:
+            if len(data) < 28:
+                raise ValueError("Frame too short for 3E ASCII")
+            req.access_path = data[4:12]
+            try:
+                data_len = int(text[12:16], 16)
+            except ValueError as e:
+                raise ValueError("Invalid data length format") from e
+            if len(data) != 16 + data_len:
+                raise ValueError("Data length mismatch in 3E ASCII")
+            try:
+                req.command = int(text[20:24], 16)
+                req.subcommand = int(text[24:28], 16)
+            except ValueError as e:
+                raise ValueError("Invalid command or subcommand format") from e
+            cmd_payload = text[28:]
 
         if req.command in (0x0401, 0x1401):
             if len(cmd_payload) < 12:
@@ -129,7 +202,11 @@ class McFrame3EAscii(ProtocolHandler):
         return req
 
     def build_response(self, parsed: ParsedRequest | None, result: CommandResult) -> bytes:
-        access_path = parsed.access_path if parsed and len(parsed.access_path) == 8 else b"00000000"
+        if parsed and getattr(parsed, "access_path", None) and len(parsed.access_path) in (8, 10):
+            access_path = parsed.access_path
+        else:
+            # Default to standard 10-char access path (Net 00, PC FF, Unit IO 03FF, Station 00)
+            access_path = b"00FF03FF00"
         end_code = f"{result.error_code:04X}" if not result.success else "0000"
 
         val_text = ""

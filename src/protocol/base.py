@@ -8,7 +8,7 @@ class ParsedRequest:
     command: int = 0
     subcommand: int = 0
     data: bytes = b""
-    access_path: bytes = b"\x00\x00\x00\x00"
+    access_path: bytes = b"\x00\xFF\xFF\x03\x00"
     devices: list[dict[str, Any]] = field(default_factory=list)
     serial: bytes = b"\x00\x00"
     frame_type: str = ""

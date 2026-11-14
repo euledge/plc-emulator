@@ -4,7 +4,8 @@ import struct
 from typing import Callable
 from src.device.device_manager import DeviceManager, DeviceSpecificationError
 from src.protocol.base import ProtocolHandler, CommandResult, ParsedRequest
-from src.protocol.mc_frame_3e import McFrame3E
+from src.protocol.mc_frame_3e import McFrame3E, KNOWN_3E_COMMANDS
+from src.protocol.mc_frame_3e_ascii import KNOWN_3E_COMMANDS_ASCII
 from src.protocol.command_processor import CommandProcessor
 from src.protocol.constants import ErrorCode
 from src.server.latency import LatencyEmulator
@@ -118,11 +119,81 @@ class TcpServer:
         except DeviceSpecificationError as e:
             logger.warning("Device specification error: %s", e)
             result = CommandResult(success=False, error_code=ErrorCode.DEVICE_SPECIFICATION_ERROR)
-            req = ParsedRequest(access_path=frame[2:6] if len(frame) >= 6 else b"\x00\x00\x00\x00")
+            is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
+            if is_ascii:
+                cmd_10 = frame[22:26].decode("ascii", errors="ignore").upper() if len(frame) >= 26 else ""
+                cmd_8 = frame[20:24].decode("ascii", errors="ignore").upper() if len(frame) >= 24 else ""
+                if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = frame[4:14]
+                elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = frame[4:12]
+                elif len(frame) >= 18 and int(frame[14:18].decode("ascii", errors="ignore"), 16) + 18 == len(frame):
+                    acc = frame[4:14]
+                elif len(frame) >= 16 and int(frame[12:16].decode("ascii", errors="ignore"), 16) + 16 == len(frame):
+                    acc = frame[4:12]
+                elif len(frame) >= 14:
+                    acc = frame[4:14]
+                elif len(frame) >= 12:
+                    acc = frame[4:12]
+                else:
+                    acc = b"00FF03FF00"
+            else:
+                cmd_5 = struct.unpack_from("<H", frame, 11)[0] if len(frame) >= 13 else 0
+                cmd_4 = struct.unpack_from("<H", frame, 10)[0] if len(frame) >= 12 else 0
+                if cmd_5 in KNOWN_3E_COMMANDS:
+                    acc = frame[2:7]
+                elif cmd_4 in KNOWN_3E_COMMANDS:
+                    acc = frame[2:6]
+                elif len(frame) >= 9 and struct.unpack_from("<H", frame, 7)[0] + 9 == len(frame):
+                    acc = frame[2:7]
+                elif len(frame) >= 8 and struct.unpack_from("<H", frame, 6)[0] + 8 == len(frame):
+                    acc = frame[2:6]
+                elif len(frame) >= 7:
+                    acc = frame[2:7]
+                elif len(frame) >= 6:
+                    acc = frame[2:6]
+                else:
+                    acc = b"\x00\xFF\xFF\x03\x00"
+            req = ParsedRequest(access_path=acc)
         except Exception as e:
             logger.warning("Error parsing/processing frame: %s", e)
             result = CommandResult(success=False, error_code=ErrorCode.COMMAND_TYPE_INVALID)
-            req = ParsedRequest(access_path=frame[2:6] if len(frame) >= 6 else b"\x00\x00\x00\x00")
+            is_ascii = getattr(self.protocol_handler, "SUBHEADER_REQUEST", b"") == b"5000"
+            if is_ascii:
+                cmd_10 = frame[22:26].decode("ascii", errors="ignore").upper() if len(frame) >= 26 else ""
+                cmd_8 = frame[20:24].decode("ascii", errors="ignore").upper() if len(frame) >= 24 else ""
+                if cmd_10 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = frame[4:14]
+                elif cmd_8 in KNOWN_3E_COMMANDS_ASCII:
+                    acc = frame[4:12]
+                elif len(frame) >= 18 and int(frame[14:18].decode("ascii", errors="ignore"), 16) + 18 == len(frame):
+                    acc = frame[4:14]
+                elif len(frame) >= 16 and int(frame[12:16].decode("ascii", errors="ignore"), 16) + 16 == len(frame):
+                    acc = frame[4:12]
+                elif len(frame) >= 14:
+                    acc = frame[4:14]
+                elif len(frame) >= 12:
+                    acc = frame[4:12]
+                else:
+                    acc = b"00FF03FF00"
+            else:
+                cmd_5 = struct.unpack_from("<H", frame, 11)[0] if len(frame) >= 13 else 0
+                cmd_4 = struct.unpack_from("<H", frame, 10)[0] if len(frame) >= 12 else 0
+                if cmd_5 in KNOWN_3E_COMMANDS:
+                    acc = frame[2:7]
+                elif cmd_4 in KNOWN_3E_COMMANDS:
+                    acc = frame[2:6]
+                elif len(frame) >= 9 and struct.unpack_from("<H", frame, 7)[0] + 9 == len(frame):
+                    acc = frame[2:7]
+                elif len(frame) >= 8 and struct.unpack_from("<H", frame, 6)[0] + 8 == len(frame):
+                    acc = frame[2:6]
+                elif len(frame) >= 7:
+                    acc = frame[2:7]
+                elif len(frame) >= 6:
+                    acc = frame[2:6]
+                else:
+                    acc = b"\x00\xFF\xFF\x03\x00"
+            req = ParsedRequest(access_path=acc)
 
         if not result.success and not self.error_response_enabled:
             logger.info("Error response disabled: dropping error response")

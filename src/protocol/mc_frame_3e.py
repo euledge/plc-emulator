@@ -119,7 +119,7 @@ class McFrame3E(ProtocolHandler):
         access_path = (
             parsed.access_path
             if parsed is not None and getattr(parsed, "access_path", None)
-            else b"\x00\x00\x00\x00"
+            else b"\x00\xFF\xFF\x03\x00"
         )
         resp = (
             self.SUBHEADER_RESPONSE

@@ -56,13 +56,24 @@ def test_parse_batch_write_request(handler):
 def test_build_response_success(handler):
     from src.protocol.base import CommandResult
     result = CommandResult(success=True, data=b"\x01\x02")
+    # Default without parsed request uses standard 5-byte access path
     resp = handler.build_response(None, result)
     assert resp[:2] == b"\xD0\x00"
-    assert resp[8:10] == b"\x00\x00"
+    assert resp[2:7] == b"\x00\xFF\xFF\x03\x00"  # 5-byte standard routing
+    assert resp[9:11] == b"\x00\x00"
+
+    # Legacy 4-byte access path echoed correctly
+    from src.protocol.base import ParsedRequest
+    req_legacy = ParsedRequest(access_path=b"\x00\x00\x00\x00")
+    resp_legacy = handler.build_response(req_legacy, result)
+    assert resp_legacy[2:6] == b"\x00\x00\x00\x00"
+    assert resp_legacy[8:10] == b"\x00\x00"
 
 
 def test_build_response_error(handler):
     from src.protocol.base import CommandResult
     result = CommandResult(success=False, error_code=0xC059)
     resp = handler.build_response(None, result)
-    assert resp[8:10] == b"\x59\xC0"
+    assert resp[:2] == b"\xD0\x00"
+    assert resp[2:7] == b"\x00\xFF\xFF\x03\x00"
+    assert resp[9:11] == b"\x59\xC0"
